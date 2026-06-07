@@ -1,0 +1,12 @@
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/Main.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/RootCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/IssueAnalysis.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/Severity.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/SeverityAnalyzer.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/CriticalCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SyncCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/github/GitHubClient.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Issue.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Label.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequest.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequestMarker.java
