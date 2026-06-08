@@ -1,32 +1,38 @@
 package org.apache.issueai.cli;
 
-import org.apache.issueai.github.GitHubClient;
-import org.apache.issueai.model.Issue;
-import picocli.CommandLine.Command;
-
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.apache.issueai.github.GitHubClient;
+import org.apache.issueai.model.Issue;
+import org.apache.issueai.storage.JsonStorage;
+import picocli.CommandLine.Command;
 
 @Command(name = "sync")
 public class SyncCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
 
-        GitHubClient client =
-                new GitHubClient(System.getenv("GITHUB_TOKEN"));
-
-        List<Issue> allIssues =
-                client.getOpenIssues("apache", "logging-log4j2");
+        List<Issue> allIssues = client.getOpenIssues("apache", "logging-log4j2");
 
         List<Issue> realIssues = allIssues.stream()
                 .filter(issue -> !issue.isPullRequest())
                 .toList();
 
+        List<Issue> pullRequests = allIssues.stream()
+                .filter(Issue::isPullRequest)
+                .toList();
+
+        // Save data to JSON local cache
+        JsonStorage.saveIssues(realIssues);
+        JsonStorage.savePullRequests(pullRequests);
+
         System.out.println("Repository: apache/logging-log4j2");
-        System.out.println("Open Issues: " + realIssues.size());
+        System.out.println("Open Issues Saved: " + realIssues.size());
+        System.out.println("Open PRs Saved: " + pullRequests.size());
 
         printMostCommented(realIssues);
         printOldest(realIssues);

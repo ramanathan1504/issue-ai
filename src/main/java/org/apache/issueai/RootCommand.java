@@ -1,6 +1,5 @@
 package org.apache.issueai;
-import org.apache.issueai.cli.CriticalCommand;
-import org.apache.issueai.cli.SyncCommand;
+import org.apache.issueai.cli.*;
 import picocli.CommandLine.Command;
 
 @Command(
@@ -9,7 +8,13 @@ import picocli.CommandLine.Command;
         version = "0.1",
         subcommands = {
                 SyncCommand.class,
-                CriticalCommand.class
+                CriticalCommand.class,
+                ReportCommand.class,
+                PrsCommand.class,
+                AnalyzeCommand.class,
+                HiddenCriticalCommand.class,
+                DuplicatesCommand.class,
+                TrendCommand.class
         }
 )
 public class RootCommand {

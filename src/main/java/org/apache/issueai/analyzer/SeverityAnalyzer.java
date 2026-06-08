@@ -1,10 +1,9 @@
 package org.apache.issueai.analyzer;
 
-import org.apache.issueai.model.Issue;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.regex.Pattern;
+import org.apache.issueai.model.Issue;
 
 public class SeverityAnalyzer {
 
@@ -21,34 +20,20 @@ public class SeverityAnalyzer {
     private static final Pattern MEMORY_LEAK = wordPattern("memory leak");
     private static final Pattern DEADLOCK = wordPattern("deadlock");
     private static final Pattern HANG = wordPattern("hang");
-    private static final Pattern CONTENTION =
-
-            wordPattern("contention");
-    private static final Pattern SUPPORT_FOR =
-            Pattern.compile("\\bsupport\\s+for\\b");
-    private static final Pattern NEW_FEATURE =
-            Pattern.compile("\\bnew\\s+feature\\b");    private static final Pattern MISSING_ANSI = wordPattern("missing ansi");
+    private static final Pattern CONTENTION = wordPattern("contention");
+    private static final Pattern SUPPORT_FOR = Pattern.compile("\\bsupport\\s+for\\b");
+    private static final Pattern NEW_FEATURE = Pattern.compile("\\bnew\\s+feature\\b");
+    private static final Pattern MISSING_ANSI = wordPattern("missing ansi");
     private static final Pattern STYLE = wordPattern("style");
     private static final Pattern DOCUMENTATION = wordPattern("documentation");
-    private static final Pattern MEMORY_USAGE =
-
-            Pattern.compile("\\bmemory\\s+usage\\b");
-
-    private static final Pattern HEAP_LEAK =
-
-            Pattern.compile("\\bheap\\s+leak\\b");
-
-    private static final Pattern FAILS_TO_START =
-            Pattern.compile("\\bfails?\\s+to\\s+start\\b");
-    private static final Pattern MEMORY =
-            wordPattern("memory");
-    private static final Pattern STARTUP =
-            wordPattern("startup");
-    private static final Pattern CANT_START =
-            Pattern.compile("\\bcan'?t\\s+start\\b");
+    private static final Pattern MEMORY_USAGE = Pattern.compile("\\bmemory\\s+usage\\b");
+    private static final Pattern HEAP_LEAK = Pattern.compile("\\bheap\\s+leak\\b");
+    private static final Pattern FAILS_TO_START = Pattern.compile("\\bfails?\\s+to\\s+start\\b");
+    private static final Pattern MEMORY = wordPattern("memory");
+    private static final Pattern STARTUP = wordPattern("startup");
+    private static final Pattern CANT_START = Pattern.compile("\\bcan'?t\\s+start\\b");
 
     private static Pattern labelPattern(String s) {
-
         return Pattern.compile("\\b" + Pattern.quote(s) + "\\b", Pattern.CASE_INSENSITIVE);
     }
 
@@ -56,63 +41,69 @@ public class SeverityAnalyzer {
     private static final Pattern PERFORMANCE_LABEL = labelPattern("performance");
     private static final Pattern SECURITY_LABEL = labelPattern("security");
     private static final Pattern DOCUMENTATION_LABEL = labelPattern("documentation");
-    private static final Pattern WAITING_FOR_MAINTAINER =
+    private static final Pattern WAITING_FOR_MAINTAINER = labelPattern("waiting-for-maintainer");
 
-            labelPattern("waiting-for-maintainer");
     private static boolean labelMatches(Issue issue, Pattern p) {
-        return issue != null && issue.labels() != null &&
-                issue.labels().stream()
-                        .anyMatch(label -> p.matcher(label.name()).find());
+        return issue != null
+                && issue.labels() != null
+                && issue.labels().stream()
+                .filter(label -> label != null && label.name() != null)
+                .anyMatch(label -> p.matcher(label.name()).find());
     }
 
     public IssueAnalysis analyze(Issue issue) {
+        if (issue == null) {
+            throw new IllegalArgumentException("Issue cannot be null");
+        }
 
-        String text =
-                (issue.title() + " " +
-                        (issue.body() == null ? "" : issue.body()))
-                        .toLowerCase();
+        String title = issue.title() == null ? "" : issue.title().toLowerCase();
+        String body = issue.body() == null ? "" : issue.body().toLowerCase();
+        String text = (title + " " + body).trim();
 
         int score = 0;
         StringBuilder reason = new StringBuilder();
-        long daysOpen =
 
-                ChronoUnit.DAYS.between(
-
-                        Instant.parse(issue.created_at()),
-
-                        Instant.now());
+        // Calculate days open safely
+        long daysOpen = 0;
+        if (issue.created_at() != null) {
+            try {
+                daysOpen = ChronoUnit.DAYS.between(Instant.parse(issue.created_at()), Instant.now());
+            } catch (Exception e) {
+                // Keep default value of 0 days if parsing fails
+            }
+        }
 
         if (daysOpen > 365) {
-
             score += 10;
-
         }
-
         if (daysOpen > 730) {
-
             score += 20;
-
         }
-        long daysSinceUpdate =
-                ChronoUnit.DAYS.between(
-                        Instant.parse(issue.updated_at()),
-                        Instant.now());
+
+        // Calculate days since update safely
+        long daysSinceUpdate = Long.MAX_VALUE;
+        if (issue.updated_at() != null) {
+            try {
+                daysSinceUpdate = ChronoUnit.DAYS.between(Instant.parse(issue.updated_at()), Instant.now());
+            } catch (Exception e) {
+                // Keep default high value so it doesn't trigger score modifier if parsing fails
+            }
+        }
 
         if (daysSinceUpdate < 30) {
             score += 15;
         }
+
+        // Contextual pattern checks
         if (SUPPORT.matcher(text).find()) {
             score -= 40;
         }
-
         if (ENHANCEMENT.matcher(text).find()) {
             score -= 40;
         }
-
         if (DOCUMENT.matcher(text).find()) {
             score -= 50;
         }
-
         if (FEATURE.matcher(text).find()) {
             score -= 40;
         }
@@ -128,113 +119,97 @@ public class SeverityAnalyzer {
             reason.append("memory ");
         }
         if (FAILS_TO_START.matcher(text).find()) {
-
             score += 80;
-
             reason.append("startup-failure ");
-
         }
         if (labelMatches(issue, WAITING_FOR_MAINTAINER)) {
-
             score += 10;
-
             reason.append("waiting-for-maintainer ");
-
         }
         if (CANT_START.matcher(text).find()) {
-
             score += 80;
-
             reason.append("startup-failure ");
-
         }
+
         // Keyword scoring
-        if (MEMORY_LEAK.matcher(text).find()) {
+        if (MEMORY_LEAK.matcher(title).find()) {
             score += 100;
             reason.append("memory leak ");
+        } else if (MEMORY_LEAK.matcher(body).find()) {
+            score += 60;
+            reason.append("memory leak ");
         }
+
         if (MEMORY_USAGE.matcher(text).find()) {
-
             score += 80;
-
             reason.append("memory-usage ");
-
         }
-
         if (HEAP_LEAK.matcher(text).find()) {
-
             score += 100;
-
             reason.append("heap-leak ");
-
         }
 
-        if (DEADLOCK.matcher(text).find()) {
-            score += 100;
-            reason.append("deadlock ");
+        if (DEADLOCK.matcher(title).find()) {
+            score += 120;
+            reason.append("deadlock-title ");
+        } else if (DEADLOCK.matcher(body).find()) {
+            score += 60;
+            reason.append("deadlock-body ");
         }
 
-        if (HANG.matcher(text).find()) {
-
-            System.out.println(
-
-                    "HANG MATCH: #" +
-
-                            issue.number() +
-
-                            " -> " +
-
-                            issue.title());
-
+        if (HANG.matcher(title).find()) {
             score += 80;
-
+            System.out.println("HANG MATCH: #" + issue.number() + " -> " + title);
             reason.append("hang ");
-
+        } else if (HANG.matcher(body).find()) {
+            // Clean up multi-lines and truncate for terminal output
+            String bodyPreview = body.length() > 100
+                    ? body.substring(0, 100).replaceAll("\\s+", " ") + "..."
+                    : body.replaceAll("\\s+", " ");
+            System.out.println("HANG MATCH: #" + issue.number() + " (in body) -> " + bodyPreview);
+            score += 60;
+            reason.append("hang ");
         }
+
         if (CONTENTION.matcher(text).find()) {
             score += 60;
             reason.append("contention ");
         }
-        // Label scoring (use pattern matching to allow label variations)
+
+        // Label scoring (using pattern matching to allow label variations)
         if (labelMatches(issue, BUG_LABEL)) {
             score += 20;
             reason.append("bug-label ");
         }
-
         if (labelMatches(issue, PERFORMANCE_LABEL)) {
             score += 30;
             reason.append("performance-label ");
         }
-
         if (labelMatches(issue, SECURITY_LABEL)) {
             score += 100;
             reason.append("security-label ");
         }
-
         if (labelMatches(issue, DOCUMENTATION_LABEL)) {
             score -= 50;
             reason.append("documentation-label ");
         }
+
+        // Decremental patterns
         if (SUPPORT_FOR.matcher(text).find()) {
             score -= 60;
         }
-
         if (NEW_FEATURE.matcher(text).find()) {
             score -= 60;
         }
-
         if (MISSING_ANSI.matcher(text).find()) {
             score -= 50;
         }
-
         if (STYLE.matcher(text).find()) {
             score -= 30;
         }
-
         if (DOCUMENTATION.matcher(text).find()) {
             score -= 50;
         }
-
         if (DEPRECATE.matcher(text).find()) {
             score -= 40;
         }
@@ -242,34 +217,17 @@ public class SeverityAnalyzer {
         // Comment scoring
         score += Math.min(issue.comments(), 20);
 
-        Severity severity =
-                score >= 120 ? Severity.CRITICAL :
-                        score >= 80 ? Severity.HIGH :
-                        score >= 40 ? Severity.MEDIUM :
-                        Severity.LOW;
+        Severity severity = score >= 120 ? Severity.CRITICAL
+                : score >= 80 ? Severity.HIGH
+                  : score >= 40 ? Severity.MEDIUM
+                    : Severity.LOW;
+
+        String formattedReason = reason.toString().trim();
+
         if (score >= 80) {
-
-            System.out.printf(
-
-                    "#%d score=%d reason=%s%n",
-
-                    issue.number(),
-
-                    score,
-
-                    reason);
-
+            System.out.printf("#%d score=%d reason=%s%n", issue.number(), score, formattedReason);
         }
-        return new IssueAnalysis(
-                issue,
-                severity,
-                score,
-                reason.toString()
-        );
+
+        return new IssueAnalysis(issue, severity, score, formattedReason);
     }
-
-
 }
-
-
-
