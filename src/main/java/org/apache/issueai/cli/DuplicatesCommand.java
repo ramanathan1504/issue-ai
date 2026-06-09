@@ -30,8 +30,7 @@ public class DuplicatesCommand implements Callable<Integer> {
 
     @Option(
             names = {"-m", "--model"},
-            description = "Ollama embedding model to use",
-            defaultValue = "all-minilm"
+            description = "Ollama embedding model to use"
     )
     private String modelName;
 
@@ -44,14 +43,20 @@ public class DuplicatesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        // Load issues specifically for this repository
+        // Resolve dynamic embedding model
+        if (modelName == null) {
+            modelName = SqliteStorage.loadConfig("ollama.model.embedding");
+            if (modelName == null) {
+                modelName = "all-minilm";
+            }
+        }
+
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
             System.err.printf("No local issues found for '%s'. Please run 'sync' first.%n", repository);
             return 1;
         }
 
-        // 1. Load any previously cached vector embeddings for this repo from the DB
         List<IssueEmbedding> cachedEmbeddings = SqliteStorage.loadEmbeddings(repository);
         Map<Long, double[]> vectorMap = new HashMap<>();
         for (IssueEmbedding emb : cachedEmbeddings) {
@@ -62,7 +67,6 @@ public class DuplicatesCommand implements Callable<Integer> {
         OllamaClient client = new OllamaClient(modelName);
         boolean cacheUpdated = false;
 
-        // 2. Compute missing embeddings
         for (Issue issue : issues) {
             if (!vectorMap.containsKey(issue.number())) {
                 System.out.printf("  Generating embedding vector for Issue #%d...%n", issue.number());
@@ -73,22 +77,18 @@ public class DuplicatesCommand implements Callable<Integer> {
                     cacheUpdated = true;
                 } catch (IOException | InterruptedException e) {
                     System.err.printf("  ↳ [Error] Failed to generate embedding for #%d: %s%n", issue.number(), e.getMessage());
-                    System.err.println("Verify Ollama is running ('ollama serve') and model is pulled ('ollama pull " + modelName + "').");
                     return 1;
                 }
             }
         }
 
-        // Save embeddings cache if we generated new ones
         if (cacheUpdated) {
             List<IssueEmbedding> newCacheList = new ArrayList<>();
-            // Passed 'repository' as the first argument
             vectorMap.forEach((k, v) -> newCacheList.add(new IssueEmbedding(repository, k, v)));
             SqliteStorage.saveEmbeddings(repository, newCacheList);
             System.out.println("  ↳ Local embeddings database updated.");
         }
 
-        // 3. Build similarity graph (Adjacency List)
         int size = issues.size();
         List<List<Integer>> adj = new ArrayList<>();
         for (int i = 0; i < size; i++) {
@@ -110,7 +110,6 @@ public class DuplicatesCommand implements Callable<Integer> {
             }
         }
 
-        // 4. Cluster similar issues using Connected Components (BFS)
         boolean[] visited = new boolean[size];
         List<List<Issue>> clusters = new ArrayList<>();
 
@@ -134,14 +133,12 @@ public class DuplicatesCommand implements Callable<Integer> {
                     }
                 }
 
-                // We only care about components with more than 1 issue (groups of duplicates)
                 if (cluster.size() > 1) {
                     clusters.add(cluster);
                 }
             }
         }
 
-        // 5. Output Report
         System.out.println("\nDuplicate Issue Clusters Report");
         System.out.println("===============================\n");
 
@@ -156,7 +153,6 @@ public class DuplicatesCommand implements Callable<Integer> {
                     System.out.printf("  #%d: %s%n", issue.number(), issue.title());
                 }
 
-                // Print a sample similarity for reference (first pair)
                 double[] vecA = vectorMap.get(cluster.get(0).number());
                 double[] vecB = vectorMap.get(cluster.get(1).number());
                 if (vecA != null && vecB != null) {

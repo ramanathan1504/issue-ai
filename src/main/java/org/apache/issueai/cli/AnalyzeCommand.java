@@ -29,14 +29,20 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     @Option(
             names = {"-m", "--model"},
-            description = "Ollama model name to use",
-            defaultValue = "qwen3:8b"
+            description = "Ollama model name to use"
     )
     private String modelName;
 
     @Override
     public Integer call() throws Exception {
-        // 1. Load cached issues specifically for this repository
+        // 1. Resolve model dynamically from SQLite config if no CLI option was passed
+        if (modelName == null) {
+            modelName = SqliteStorage.loadConfig("ollama.model.triage");
+            if (modelName == null) {
+                modelName = "qwen2.5:0.5b"; // Safe ultimate fallback
+            }
+        }
+
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
             System.err.printf("No local issues found for '%s'. Please run 'sync' first.%n", repository);
@@ -94,7 +100,6 @@ public class AnalyzeCommand implements Callable<Integer> {
             }
         }
 
-        // 2. Save the results specifically for this repository
         SqliteStorage.saveAiAnalysis(repository, results);
         System.out.printf("%nAI Analysis completed. Results saved to SQLite for '%s'.%n", repository);
         return 0;

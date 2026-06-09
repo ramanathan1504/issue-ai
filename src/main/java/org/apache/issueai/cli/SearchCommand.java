@@ -42,8 +42,7 @@ public class SearchCommand implements Callable<Integer> {
 
     @Option(
             names = {"-m", "--model"},
-            description = "Ollama embedding model to use",
-            defaultValue = "all-minilm"
+            description = "Ollama embedding model to use"
     )
     private String modelName;
 
@@ -56,6 +55,14 @@ public class SearchCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        // Resolve dynamic embedding model
+        if (modelName == null) {
+            modelName = SqliteStorage.loadConfig("ollama.model.embedding");
+            if (modelName == null) {
+                modelName = "all-minilm";
+            }
+        }
+
         Map<String, Issue> issueMap = new HashMap<>();
         List<IssueEmbedding> embeddings;
 
@@ -65,7 +72,6 @@ public class SearchCommand implements Callable<Integer> {
             List<RepoIssue> allPrs = SqliteStorage.loadAllPullRequests();
             embeddings = SqliteStorage.loadAllEmbeddings();
 
-            // Map using composite key: repository + "_" + issue_number
             allIssues.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
             allPrs.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
         } else {
@@ -82,7 +88,7 @@ public class SearchCommand implements Callable<Integer> {
             return 1;
         }
 
-        System.out.printf("Generating semantic vector for query: \"%s\"...%n", query);
+        System.out.printf("Generating semantic vector for query: \"%s\" (Model: %s)...%n", query, modelName);
         OllamaClient client = new OllamaClient(modelName);
         double[] queryVector;
 

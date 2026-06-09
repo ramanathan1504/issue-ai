@@ -10,6 +10,7 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/PrsCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/ReportCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SearchCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SetupCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SyncCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TrendCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TriageCommand.java
@@ -20,6 +21,7 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/IssueEmbedding.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/JiraBridgeLink.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Label.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PersonalRecommendation.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequest.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequestMarker.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/RepoIssue.java

@@ -16,7 +16,8 @@ import picocli.CommandLine.Command;
                 PrsCommand.class,
                 ReportCommand.class,
                 TrendCommand.class,
-                TriageCommand.class
+                TriageCommand.class,
+                SetupCommand.class
         }
 )
 public class RootCommand {

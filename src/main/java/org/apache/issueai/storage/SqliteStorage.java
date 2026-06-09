@@ -214,7 +214,8 @@ public class SqliteStorage {
                             rs.getBoolean("is_pull_request") ? new PullRequestMarker() : null,
                             labelsList,
                             new User(rs.getString("author")),
-                            rs.getString("author_association")
+                            rs.getString("author_association"),
+                            repository // Pass repository string as html_url context
                     );
                     results.add(issue);
                 }
@@ -309,7 +310,6 @@ public class SqliteStorage {
                     long num = rs.getLong("issue_number");
                     String jsonVector = rs.getString("vector");
                     double[] vector = MAPPER.readValue(jsonVector, double[].class);
-                    // Pass 3 parameters (repository, num, vector)
                     results.add(new IssueEmbedding(repository, num, vector));
                 }
             }
@@ -318,7 +318,7 @@ public class SqliteStorage {
     }
 
     // ==========================================
-    // 4. Historical Snapshots Operations
+    // 4. Historical Snapshots & Sync State Operations
     // ==========================================
 
     public static void saveTrendSnapshot(String repository, TrendSnapshot snapshot) throws SQLException {
@@ -364,6 +364,30 @@ public class SqliteStorage {
             }
         }
         return results;
+    }
+
+    public static String loadLastSyncedAt(String repository) throws SQLException {
+        String sql = "SELECT last_synced_at FROM monitored_repositories WHERE repository = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("last_synced_at");
+                }
+            }
+        }
+        return null;
+    }
+
+    public static void updateLastSyncedAt(String repository, String timestamp) throws SQLException {
+        String sql = "UPDATE monitored_repositories SET last_synced_at = ? WHERE repository = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, timestamp);
+            ps.setString(2, repository);
+            ps.executeUpdate();
+        }
     }
 
     // ==========================================
@@ -452,7 +476,43 @@ public class SqliteStorage {
     }
 
     // ==========================================
-    // 6. Global Multi-Repo Operations
+    // 6. Monitored Repositories Operations
+    // ==========================================
+
+    public static List<String> loadMonitoredRepositories() throws SQLException {
+        String sql = "SELECT repository FROM monitored_repositories WHERE enabled = 1;";
+        List<String> results = new ArrayList<>();
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                results.add(rs.getString("repository"));
+            }
+        }
+        return results;
+    }
+
+    public static void saveMonitoredRepository(String repository, boolean enabled) throws SQLException {
+        String sql = "INSERT OR REPLACE INTO monitored_repositories (repository, enabled) VALUES (?, ?);";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            ps.setBoolean(2, enabled);
+            ps.executeUpdate();
+        }
+    }
+
+    public static void deleteMonitoredRepository(String repository) throws SQLException {
+        String sql = "DELETE FROM monitored_repositories WHERE repository = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            ps.executeUpdate();
+        }
+    }
+
+    // ==========================================
+    // 7. Global Multi-Repo Operations
     // ==========================================
 
     public static List<IssueEmbedding> loadAllEmbeddings() throws SQLException, IOException {
@@ -508,6 +568,7 @@ public class SqliteStorage {
                     String repo = rs.getString("repository");
                     List<Label> labelsList = labelsMap.getOrDefault(repo + "_" + num, List.of());
 
+                    // Reconstruct Issue passing the repository column as the 12th parameter (html_url)
                     Issue issue = new Issue(
                             num,
                             rs.getString("title"),
@@ -519,7 +580,8 @@ public class SqliteStorage {
                             rs.getBoolean("is_pull_request") ? new PullRequestMarker() : null,
                             labelsList,
                             new User(rs.getString("author")),
-                            rs.getString("author_association")
+                            rs.getString("author_association"),
+                            repo // Pass repository string as html_url context
                     );
                     results.add(new RepoIssue(repo, issue));
                 }
@@ -527,64 +589,159 @@ public class SqliteStorage {
             return results;
         }
     }
+
     // ==========================================
-    // 6. Monitored Repositories Operations
+    // 8. System Configuration Operations
     // ==========================================
 
-    public static List<String> loadMonitoredRepositories() throws SQLException {
-        String sql = "SELECT repository FROM monitored_repositories WHERE enabled = 1;";
-        List<String> results = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) {
-                results.add(rs.getString("repository"));
-            }
-        }
-        return results;
-    }
-
-    public static void saveMonitoredRepository(String repository, boolean enabled) throws SQLException {
-        String sql = "INSERT OR REPLACE INTO monitored_repositories (repository, enabled) VALUES (?, ?);";
+    public static String loadConfig(String key) throws SQLException {
+        String sql = "SELECT value FROM system_config WHERE key = ?;";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, repository);
-            ps.setBoolean(2, enabled);
-            ps.executeUpdate();
-        }
-    }
-
-    public static void deleteMonitoredRepository(String repository) throws SQLException {
-        String sql = "DELETE FROM monitored_repositories WHERE repository = ?;";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, repository);
-            ps.executeUpdate();
-        }
-    }
-
-    public static String loadLastSyncedAt(String repository) throws SQLException {
-        String sql = "SELECT last_synced_at FROM monitored_repositories WHERE repository = ?;";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, repository);
+            ps.setString(1, key);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return rs.getString("last_synced_at");
+                    return rs.getString("value");
                 }
             }
         }
         return null;
     }
 
-    public static void updateLastSyncedAt(String repository, String timestamp) throws SQLException {
-        String sql = "UPDATE monitored_repositories SET last_synced_at = ? WHERE repository = ?;";
+    public static void saveConfig(String key, String value) throws SQLException {
+        String sql = "INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?);";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, timestamp);
-            ps.setString(2, repository);
+            ps.setString(1, key);
+            ps.setString(2, value);
             ps.executeUpdate();
         }
+    }
+
+    // ==========================================
+    // 9. Personal Code Footprint Operations
+    // ==========================================
+
+    public static void savePersonalCodeFootprint(String repository, long issueNumber, List<String> filePaths) throws SQLException {
+        String deleteSql = "DELETE FROM personal_code_footprint WHERE repository = ? AND issue_number = ?;";
+        String insertSql = "INSERT OR REPLACE INTO personal_code_footprint (repository, issue_number, file_path) VALUES (?, ?, ?);";
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement psDel = conn.prepareStatement(deleteSql);
+                 PreparedStatement psIns = conn.prepareStatement(insertSql)) {
+
+                psDel.setString(1, repository);
+                psDel.setLong(2, issueNumber);
+                psDel.executeUpdate();
+
+                for (String path : filePaths) {
+                    psIns.setString(1, repository);
+                    psIns.setLong(2, issueNumber);
+                    psIns.setString(3, path);
+                    psIns.addBatch();
+                }
+
+                psIns.executeBatch();
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        }
+    }
+
+    public static List<String> loadPersonalCodeFootprint(String repository) throws SQLException {
+        String sql = "SELECT DISTINCT file_path FROM personal_code_footprint WHERE repository = ?;";
+        List<String> results = new ArrayList<>();
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    results.add(rs.getString("file_path"));
+                }
+            }
+        }
+        return results;
+    }
+    // ==========================================
+    // 10. Personal Developer Memory Operations
+    // ==========================================
+
+    public static boolean hasPersonalPrMemory(String repository, long prNumber) throws SQLException {
+        String sql = "SELECT 1 FROM personal_pr_memory WHERE repository = ? AND pr_number = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            ps.setLong(2, prNumber);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    public static void savePersonalPrMemory(String repository, long prNumber, String filesChanged, String generatedStory, double[] vector) throws SQLException, IOException {
+        String sql = "INSERT OR REPLACE INTO personal_pr_memory (repository, pr_number, files_changed, generated_story, vector) VALUES (?, ?, ?, ?, ?);";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            ps.setLong(2, prNumber);
+            ps.setString(3, filesChanged);
+            ps.setString(4, generatedStory);
+            ps.setString(5, MAPPER.writeValueAsString(vector));
+            ps.executeUpdate();
+        }
+    }
+
+    public static long loadPersonalChatLastModified(String filePath) throws SQLException {
+        String sql = "SELECT last_modified FROM personal_chat_memory WHERE file_path = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong("last_modified");
+                }
+            }
+        }
+        return -1;
+    }
+
+    public static void savePersonalChatMemory(String filePath, String fileName, long lastModified, String content, double[] vector) throws SQLException, IOException {
+        String sql = "INSERT OR REPLACE INTO personal_chat_memory (file_path, file_name, last_modified, content, vector) VALUES (?, ?, ?, ?, ?);";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            ps.setString(2, fileName);
+            ps.setLong(3, lastModified);
+            ps.setString(4, content);
+            ps.setString(5, MAPPER.writeValueAsString(vector));
+            ps.executeUpdate();
+        }
+    }
+    public static String loadPersonalChatContent(String filePath) throws SQLException {
+        String sql = "SELECT content FROM personal_chat_memory WHERE file_path = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, filePath);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("content");
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String bytesToHex(byte[] hash) {
+        StringBuilder hexString = new StringBuilder(2 * hash.length);
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 
 }
