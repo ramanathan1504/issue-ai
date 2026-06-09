@@ -6,8 +6,9 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.model.Issue;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(
         name = "hidden-critical",
@@ -15,13 +16,21 @@ import picocli.CommandLine.Command;
 )
 public class HiddenCriticalCommand implements Callable<Integer> {
 
+    @Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
+
     @Override
     public Integer call() throws Exception {
-        List<Issue> issues = JsonStorage.loadIssues();
-        List<AiAnalysisResult> aiResults = JsonStorage.loadAiAnalysis();
+        // Load issues and AI analysis results specifically for this repository context
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
+        List<AiAnalysisResult> aiResults = SqliteStorage.loadAiAnalysis(repository);
 
         if (issues.isEmpty() || aiResults.isEmpty()) {
-            System.err.println("Required local data is missing. Please run 'sync' followed by 'analyze' first.");
+            System.err.printf("Required local data is missing for '%s'. Please run 'sync' followed by 'analyze' first.%n", repository);
             return 1;
         }
 
@@ -29,8 +38,8 @@ public class HiddenCriticalCommand implements Callable<Integer> {
         Map<Long, AiAnalysisResult> aiMap = aiResults.stream()
                 .collect(Collectors.toMap(AiAnalysisResult::issueNumber, result -> result));
 
-        System.out.println("Hidden Critical Issues Report");
-        System.out.println("=============================\n");
+        System.out.printf("Hidden Critical Issues Report for '%s'%n", repository);
+        System.out.println("====================================================\n");
 
         int count = 0;
 
@@ -82,9 +91,9 @@ public class HiddenCriticalCommand implements Callable<Integer> {
         }
 
         if (count == 0) {
-            System.out.println("No hidden critical issues detected in this database snapshot.");
+            System.out.printf("No hidden critical issues detected in this database snapshot for '%s'.%n", repository);
         } else {
-            System.out.printf("Detection completed. Found %d potential hidden critical issues.%n", count);
+            System.out.printf("Detection completed. Found %d potential hidden critical issues for '%s'.%n", count, repository);
         }
 
         return 0;

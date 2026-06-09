@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -20,20 +21,22 @@ import org.apache.issueai.analyzer.SeverityAnalyzer;
 import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.model.JiraBridgeLink;
+import org.apache.issueai.storage.SqliteStorage;
 
 public class MarkdownReportWriter implements ReportWriter {
 
     @Override
-    public void write(Path outputPath, List<IssueAnalysis> analyses) throws IOException {
-        write(outputPath);
-    }
+    public void write(Path outputPath, String repository) throws IOException, SQLException {
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
+        List<Issue> prs = SqliteStorage.loadPullRequests(repository);
+        List<AiAnalysisResult> aiResults = SqliteStorage.loadAiAnalysis(repository);
+        List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
 
-    public void write(Path outputPath) throws IOException {
-        List<Issue> issues = JsonStorage.loadIssues();
-        List<Issue> prs = JsonStorage.loadPullRequests();
-        List<AiAnalysisResult> aiResults = JsonStorage.loadAiAnalysis();
-        List<IssueEmbedding> embeddings = JsonStorage.loadEmbeddings();
+        // Query Ecosystem Connections from SQLite
+        List<String> inboundLinks = SqliteStorage.loadInboundLinks(repository);
+        List<String> outboundLinks = SqliteStorage.loadOutboundLinks(repository);
+        List<JiraBridgeLink> jiraBridges = SqliteStorage.loadJiraBridges(repository);
 
         Instant now = Instant.now();
 
@@ -156,6 +159,46 @@ public class MarkdownReportWriter implements ReportWriter {
             }
         }
         md.append("\n");
+
+        // Ecosystem Connections & Downstream Impact Section
+        md.append("## Ecosystem Connections & Downstream Impact\n\n");
+
+        md.append("### JIRA Bridge Cross-Project Overlaps\n");
+        if (jiraBridges.isEmpty()) {
+            md.append("(none)\n\n");
+        } else {
+            md.append("The following issues discuss identical JIRA keys across repositories:\n");
+            for (JiraBridgeLink bridge : jiraBridges) {
+                md.append(String.format(
+                        "- Our Issue **#%d** matches **%s#%d** via JIRA Key **%s**%n",
+                        bridge.localNumber(),
+                        bridge.externalRepo(),
+                        bridge.externalNumber(),
+                        bridge.jiraKey()
+                ));
+            }
+            md.append("\n");
+        }
+
+        md.append("### Downstream References (Other projects linking to us)\n");
+        if (inboundLinks.isEmpty()) {
+            md.append("(none)\n\n");
+        } else {
+            for (String link : inboundLinks) {
+                md.append("- ").append(link).append("\n");
+            }
+            md.append("\n");
+        }
+
+        md.append("### Upstream Dependencies (We are linking to other projects)\n");
+        if (outboundLinks.isEmpty()) {
+            md.append("(none)\n\n");
+        } else {
+            for (String link : outboundLinks) {
+                md.append("- ").append(link).append("\n");
+            }
+            md.append("\n");
+        }
 
         md.append("## Stale PRs\n");
         if (stalePrLines.isEmpty()) {

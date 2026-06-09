@@ -12,7 +12,8 @@ import java.util.regex.Pattern;
 import org.apache.issueai.analyzer.Severity;
 import org.apache.issueai.analyzer.SeverityAnalyzer;
 import org.apache.issueai.model.Issue;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
+import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
 @Command(
@@ -21,12 +22,18 @@ import picocli.CommandLine.Command;
 )
 public class PrsCommand implements Callable<Integer> {
 
+    @CommandLine.Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
     private static final Pattern ISSUE_REF_PATTERN = Pattern.compile("#(\\d+)");
 
     @Override
     public Integer call() throws Exception {
-        List<Issue> prs = JsonStorage.loadPullRequests();
-        List<Issue> issues = JsonStorage.loadIssues();
+        List<Issue> prs = SqliteStorage.loadPullRequests(repository);
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
 
         if (prs.isEmpty()) {
             System.err.println("No local pull request data found. Please run 'sync' first.");

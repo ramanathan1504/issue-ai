@@ -1,6 +1,5 @@
 package org.apache.issueai.cli;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -16,7 +15,7 @@ import org.apache.issueai.analyzer.SeverityAnalyzer;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.model.TrendSnapshot;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -25,6 +24,13 @@ import picocli.CommandLine.Option;
         description = "Track and visualize weekly project health trends"
 )
 public class TrendCommand implements Callable<Integer> {
+
+    @Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
 
     @Option(
             names = {"-s", "--save"},
@@ -38,16 +44,17 @@ public class TrendCommand implements Callable<Integer> {
             saveTodaySnapshot();
         }
 
-        List<TrendSnapshot> snapshots = JsonStorage.loadTrendSnapshots();
+        // Load snapshots specifically for this repository
+        List<TrendSnapshot> snapshots = SqliteStorage.loadTrendSnapshots(repository);
 
         if (snapshots.isEmpty()) {
-            System.out.println("No historical trend data found.");
-            System.out.println("Run with 'trend --save' first to create your first snapshot.");
+            System.out.printf("No historical trend data found for '%s'.%n", repository);
+            System.out.printf("Run with 'trend --save -r %s' first to create your first snapshot.%n", repository);
             return 0;
         }
 
-        System.out.println("Project Health Trends Dashboard");
-        System.out.println("===============================\n");
+        System.out.printf("Project Health Trends Dashboard for '%s'%n", repository);
+        System.out.println("=====================================================\n");
 
         System.out.printf("%-12s | %-15s | %-13s | %-18s | %-18s%n",
                 "Date", "Critical Issues", "High Priority", "Stale PRs", "Duplicate Clusters");
@@ -90,12 +97,13 @@ public class TrendCommand implements Callable<Integer> {
     }
 
     private void saveTodaySnapshot() throws Exception {
-        List<Issue> issues = JsonStorage.loadIssues();
-        List<Issue> prs = JsonStorage.loadPullRequests();
-        List<IssueEmbedding> embeddings = JsonStorage.loadEmbeddings();
+        // Load data specifically for this repository
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
+        List<Issue> prs = SqliteStorage.loadPullRequests(repository);
+        List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
 
         if (issues.isEmpty()) {
-            System.err.println("No local issues found to save today's snapshot. Please run 'sync' first.");
+            System.err.printf("No local issues found to save today's snapshot for '%s'. Please run 'sync' first.%n", repository);
             return;
         }
 
@@ -132,8 +140,9 @@ public class TrendCommand implements Callable<Integer> {
                 dupCount
         );
 
-        JsonStorage.saveTrendSnapshot(snapshot);
-        System.out.println("  ↳ Saved snapshot for today (" + today + "):");
+        // Save snapshot specifically for this repository
+        SqliteStorage.saveTrendSnapshot(repository, snapshot);
+        System.out.printf("  ↳ Saved snapshot for today (%s) on '%s':%n", today, repository);
         System.out.printf("    Critical: %d, High: %d, Stale PRs: %d, Duplicates: %d%n%n",
                 criticalCount, highCount, staleCount, dupCount);
     }

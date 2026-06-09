@@ -11,7 +11,7 @@ import java.util.concurrent.Callable;
 import org.apache.issueai.llm.OllamaClient;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -20,6 +20,13 @@ import picocli.CommandLine.Option;
         description = "Identify potential duplicate issues using local vector embeddings"
 )
 public class DuplicatesCommand implements Callable<Integer> {
+
+    @Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
 
     @Option(
             names = {"-m", "--model"},
@@ -37,20 +44,21 @@ public class DuplicatesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        List<Issue> issues = JsonStorage.loadIssues();
+        // Load issues specifically for this repository
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
-            System.err.println("No local issues found. Please run 'sync' first.");
+            System.err.printf("No local issues found for '%s'. Please run 'sync' first.%n", repository);
             return 1;
         }
 
-        // 1. Load any previously cached vector embeddings from disk
-        List<IssueEmbedding> cachedEmbeddings = JsonStorage.loadEmbeddings();
+        // 1. Load any previously cached vector embeddings for this repo from the DB
+        List<IssueEmbedding> cachedEmbeddings = SqliteStorage.loadEmbeddings(repository);
         Map<Long, double[]> vectorMap = new HashMap<>();
         for (IssueEmbedding emb : cachedEmbeddings) {
             vectorMap.put(emb.issueNumber(), emb.vector());
         }
 
-        System.out.printf("Starting duplicate analysis (Model: %s, Threshold: %.2f)...%n", modelName, threshold);
+        System.out.printf("Starting duplicate analysis for '%s' (Model: %s, Threshold: %.2f)...%n", repository, modelName, threshold);
         OllamaClient client = new OllamaClient(modelName);
         boolean cacheUpdated = false;
 
@@ -75,7 +83,7 @@ public class DuplicatesCommand implements Callable<Integer> {
         if (cacheUpdated) {
             List<IssueEmbedding> newCacheList = new ArrayList<>();
             vectorMap.forEach((k, v) -> newCacheList.add(new IssueEmbedding(k, v)));
-            JsonStorage.saveEmbeddings(newCacheList);
+            SqliteStorage.saveEmbeddings(repository, newCacheList);
             System.out.println("  ↳ Local embeddings database updated.");
         }
 

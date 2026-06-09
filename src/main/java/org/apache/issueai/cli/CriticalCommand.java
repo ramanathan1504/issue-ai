@@ -7,8 +7,9 @@ import org.apache.issueai.analyzer.Severity;
 import org.apache.issueai.analyzer.SeverityAnalyzer;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.Label;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(
         name = "critical",
@@ -16,11 +17,19 @@ import picocli.CommandLine.Command;
 )
 public class CriticalCommand implements Callable<Integer> {
 
+    @Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
+
     @Override
     public Integer call() throws Exception {
-        List<Issue> issues = JsonStorage.loadIssues();
+        // Load issues specifically for this repository
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
-            System.err.println("No local data found. Please run the 'sync' command first.");
+            System.err.printf("No local data found for '%s'. Please run the 'sync' command first.%n", repository);
             return 1;
         }
 
@@ -37,7 +46,7 @@ public class CriticalCommand implements Callable<Integer> {
         long medium = analyses.stream().filter(a -> a.severity() == Severity.MEDIUM).count();
         long low = analyses.stream().filter(a -> a.severity() == Severity.LOW).count();
 
-        System.out.println("Repository: apache/logging-log4j2 (Offline Mode)");
+        System.out.printf("Repository: %s (Offline Mode)%n", repository);
         System.out.println();
 
         System.out.println("Critical: " + critical);

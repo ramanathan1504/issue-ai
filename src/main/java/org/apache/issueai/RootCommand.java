@@ -9,12 +9,14 @@ import picocli.CommandLine.Command;
         subcommands = {
                 SyncCommand.class,
                 CriticalCommand.class,
-                ReportCommand.class,
-                PrsCommand.class,
                 AnalyzeCommand.class,
                 HiddenCriticalCommand.class,
                 DuplicatesCommand.class,
-                TrendCommand.class
+                SearchCommand.class,
+                PrsCommand.class,
+                ReportCommand.class,
+                TrendCommand.class,
+                TriageCommand.class
         }
 )
 public class RootCommand {

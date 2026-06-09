@@ -5,10 +5,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.apache.issueai.llm.OllamaClient;
 import org.apache.issueai.model.AiAnalysisResult;
+import org.apache.issueai.llm.OllamaClient;
 import org.apache.issueai.model.Issue;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -21,6 +21,13 @@ public class AnalyzeCommand implements Callable<Integer> {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
+
+    @Option(
             names = {"-m", "--model"},
             description = "Ollama model name to use",
             defaultValue = "qwen3:8b"
@@ -29,13 +36,14 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        List<Issue> issues = JsonStorage.loadIssues();
+        // 1. Load cached issues specifically for this repository
+        List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
-            System.err.println("No local issues found. Please run 'sync' first.");
+            System.err.printf("No local issues found for '%s'. Please run 'sync' first.%n", repository);
             return 1;
         }
 
-        System.out.printf("Starting AI Severity Analysis using model '%s'...%n", modelName);
+        System.out.printf("Starting AI Severity Analysis for '%s' using model '%s'...%n", repository, modelName);
         System.out.println("Connecting to local Ollama service...");
 
         OllamaClient client = new OllamaClient(modelName);
@@ -86,8 +94,9 @@ public class AnalyzeCommand implements Callable<Integer> {
             }
         }
 
-        JsonStorage.saveAiAnalysis(results);
-        System.out.println("\nAI Analysis completed successfully. Results saved to 'data/ai-analysis.json'.");
+        // 2. Save the results specifically for this repository
+        SqliteStorage.saveAiAnalysis(repository, results);
+        System.out.printf("%nAI Analysis completed. Results saved to SQLite for '%s'.%n", repository);
         return 0;
     }
 }

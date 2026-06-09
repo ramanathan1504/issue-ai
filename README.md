@@ -1,8 +1,8 @@
 # Log4j Issue Intelligence CLI (`issue-ai`)
 
-An offline-first, AI-powered CLI tool designed to assist Apache Log4j maintainers with issue triage, duplicate identification, security audits, and pull request tracking.
+An offline-first, AI-powered CLI tool designed to assist Apache Log4j maintainers with issue triage, duplicate identification, security audits, and pull request tracking across multiple repositories.
 
-By prioritizing local data structures and running lightweight models locally via Ollama, the tool runs entirely offline, making it highly data-efficient and friendly for low-bandwidth connections.
+By migrating to a central SQLite database and running compact models locally via Ollama, the tool runs entirely offline, making it highly data-efficient and friendly for low-bandwidth connections.
 
 ---
 
@@ -48,40 +48,51 @@ The resulting executable will be generated at:
 
 ## Local Data Structure
 
-Running commands will populate your project directory with the following offline databases and directories:
+On its first boot, the program initializes a single, zero-configuration database file. All data is managed relationally:
 
 ```text
 issue-analyzer/
 ├── data/
-│   ├── issues.json       # Raw GitHub issues cache
-│   ├── prs.json          # Raw GitHub pull requests cache
-│   ├── ai-analysis.json  # Saved AI severity predictions
-│   └── embeddings.json   # Cached semantic vector embeddings
-├── history/
-│   └── 2026-06-09.json   # Historical weekly snapshots
+│   └── issue_intelligence.db  # SQLite database storing issues, labels, AI evaluations, embeddings, and snapshots
 └── reports/
-    └── log4j-health-report-20260609-235400.md  # Generated markdown reports
+    └── logging-log4j2-issues-report-20260609-143834.md  # Generated weekly reports
 ```
+
+---
+
+## Multi-Repository & Ecosystem Tracking
+
+Because the database utilizes **composite keys** (combining `repository` and `number`), you can sync and track multiple repositories side-by-side [3].
+
+Additionally, the system automatically tracks **Ecosystem Connections**:
+*   **JIRA Bridge Pattern:** Automatically detects where developers across different projects discuss identical JIRA issues (e.g., `KAFKA-XXXX`, `LOG4J2-XXXX`) and links them as cross-repo overlaps [1.1.1].
+*   **Downstream Links:** Detects when other synced repositories (like Kafka or Spark) link to your core project's issues [2].
 
 ---
 
 ## Recommended Workflow Loop
 
-For standard repository analysis, execute the following workflow:
+For standard repository analysis, execute the following workflow (using Apache Log4j as an example):
 
 ```bash
-# 1. Sync live GitHub data to local cache
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync
+# 1. Sync live GitHub data to local SQLite tables
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync -r apache/logging-log4j2
 
 # 2. Run local LLM to predict priorities
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar analyze -m qwen2.5:0.5b
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar analyze -m qwen2.5:0.5b -r apache/logging-log4j2
 
-# 3. Cluster duplicate issues semantically
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar duplicates -t 0.70
+# 3. Cache semantic duplicate index
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar duplicates -t 0.70 -r apache/logging-log4j2
 
-# 4. Compile the consolidated weekly report
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar report
+# 4. Search backlog offline semantically
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "PatternLayout truncation deadlock" -r apache/logging-log4j2
 
-# 5. Capture a snapshot to track project trends
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend --save
+# 5. Run a consolidated triage audit on a specific issue
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar triage 4088 -r apache/logging-log4j2
+
+# 6. Compile the weekly health report
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar report -r apache/logging-log4j2
+
+# 7. Capture a snapshot to track project trends
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend --save -r apache/logging-log4j2
 ```

@@ -9,13 +9,16 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/HiddenCriticalCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/PrsCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/ReportCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SearchCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SyncCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TrendCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TriageCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/github/GitHubClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/OllamaClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/AiAnalysisResult.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Issue.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/IssueEmbedding.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/JiraBridgeLink.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Label.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequest.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequestMarker.java
@@ -23,4 +26,6 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/User.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/report/MarkdownReportWriter.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/report/ReportWriter.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/storage/DatabaseManager.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/storage/JsonStorage.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/storage/SqliteStorage.java

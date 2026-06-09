@@ -6,17 +6,34 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import org.apache.issueai.github.GitHubClient;
 import org.apache.issueai.model.Issue;
-import org.apache.issueai.storage.JsonStorage;
+import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 @Command(name = "sync")
 public class SyncCommand implements Callable<Integer> {
 
+    @Option(
+            names = {"-r", "--repo"},
+            description = "The target GitHub repository to analyze (owner/name)",
+            defaultValue = "apache/logging-log4j2"
+    )
+    private String repository;
+
     @Override
     public Integer call() throws Exception {
+        String[] parts = repository.split("/");
+        if (parts.length != 2) {
+            System.err.println("Invalid repository format. Please use 'owner/name' (e.g., 'apache/kafka').");
+            return 1;
+        }
+        String owner = parts[0];
+        String repoName = parts[1];
+
         GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
 
-        List<Issue> allIssues = client.getOpenIssues("apache", "logging-log4j2");
+        // Dynamically fetch open issues for the requested owner/repo
+        List<Issue> allIssues = client.getOpenIssues(owner, repoName);
 
         List<Issue> realIssues = allIssues.stream()
                 .filter(issue -> !issue.isPullRequest())
@@ -26,11 +43,11 @@ public class SyncCommand implements Callable<Integer> {
                 .filter(Issue::isPullRequest)
                 .toList();
 
-        // Save data to JSON local cache
-        JsonStorage.saveIssues(realIssues);
-        JsonStorage.savePullRequests(pullRequests);
+        // Save data to SQLite using the target repository namespace
+        SqliteStorage.saveIssues(repository, realIssues);
+        SqliteStorage.saveIssues(repository, pullRequests);
 
-        System.out.println("Repository: apache/logging-log4j2");
+        System.out.println("Repository: " + repository);
         System.out.println("Open Issues Saved: " + realIssues.size());
         System.out.println("Open PRs Saved: " + pullRequests.size());
 
