@@ -13,7 +13,7 @@ import java.sql.Statement;
 public class DatabaseManager {
 
     private static final String DB_URL = "jdbc:sqlite:data/issue_intelligence.db";
-    private static final int CURRENT_SCHEMA_VERSION = 2;
+    private static final int CURRENT_SCHEMA_VERSION = 3;
 
     public static Connection getConnection() throws SQLException {
         try {
@@ -59,8 +59,13 @@ public class DatabaseManager {
                     setVersion(conn, CURRENT_SCHEMA_VERSION);
                 }
             } else if (version < CURRENT_SCHEMA_VERSION) {
-                // Here we can add future incremental migrations (e.g., version 2 to 3, etc.)
-                // (e.g. if (version < 3) { runMigrationToV3(conn); setVersion(conn, 3); })
+                System.out.println("Upgrading database schema to Version 3 (Adding delta-sync tracking)...");
+                try (Statement migrationStmt = conn.createStatement()) {
+                    migrationStmt.execute("ALTER TABLE monitored_repositories ADD COLUMN last_synced_at TEXT;");
+                }
+                setVersion(conn, 3);
+                System.out.println("Database schema upgraded to Version 3 successfully.");
+                version = 3; // Update local variable for any subsequent checks
             }
 
         } catch (SQLException e) {
@@ -275,7 +280,8 @@ public class DatabaseManager {
         return """
                 CREATE TABLE IF NOT EXISTS monitored_repositories (
                     repository TEXT PRIMARY KEY,
-                    enabled BOOLEAN DEFAULT 1
+                    enabled BOOLEAN DEFAULT 1,
+                    last_synced_at TEXT
                 );
                 """;
     }

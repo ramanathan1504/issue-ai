@@ -24,7 +24,7 @@ public class GitHubClient {
         this.token = token;
     }
 
-    public List<Issue> getOpenIssues(String owner, String repo) throws IOException, InterruptedException {
+    public List<Issue> getOpenIssues(String owner, String repo, String since) throws IOException, InterruptedException {
         List<Issue> allIssues = new ArrayList<>();
 
         for (int page = 1; ; page++) {
@@ -32,6 +32,12 @@ public class GitHubClient {
                     GITHUB_API +
                             "/repos/" + owner + "/" + repo +
                             "/issues?state=open&per_page=100&page=" + page;
+
+            // Append since parameter to the API URL if present
+            if (since != null && !since.trim().isEmpty()) {
+                url += "&since=" + java.net.URLEncoder.encode(since, java.nio.charset.StandardCharsets.UTF_8);
+            }
+
             List<Issue> issues = fetchPage(url);
             if (issues.isEmpty()) {
                 break;
@@ -66,44 +72,5 @@ public List<Issue> fetchPage(String url) throws IOException, InterruptedExceptio
             new TypeReference<>() {
             });
 }
-    public String getOpenPullRequests(String owner, String repo)
-            throws IOException, InterruptedException {
 
-        String url = GITHUB_API +
-                "/repos/" + owner + "/" + repo +
-                "/pulls?state=open&per_page=100";
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Accept", "application/vnd.github+json")
-                .header("Authorization", "Bearer " + token)
-                .header("X-GitHub-Api-Version", "2022-11-28")
-                .GET()
-                .build();
-
-        HttpResponse<String> response =
-                httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
-    }
-
-    public String getLabels(String owner, String repo)
-            throws IOException, InterruptedException {
-
-        String url = GITHUB_API +
-                "/repos/" + owner + "/" + repo +
-                "/labels?per_page=100";
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Accept", "application/vnd.github+json")
-                .header("Authorization", "Bearer " + token)
-                .header("X-GitHub-Api-Version", "2022-11-28")
-                .GET()
-                .build();
-
-        HttpResponse<String> response =
-                httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-        return response.body();
-    }
 }

@@ -88,14 +88,26 @@ public class SyncCommand implements Callable<Integer> {
     private int syncRepository(String targetRepo) throws Exception {
         String[] parts = targetRepo.split("/");
         if (parts.length != 2) {
-            System.err.printf("Invalid repository format '%s'. Please use 'owner/name' (e.g. 'apache/kafka').%n", targetRepo);
+            System.err.printf("Invalid repository format '%s'. Please use 'owner/name'.%n", targetRepo);
             return 1;
         }
         String owner = parts[0];
         String repoName = parts[1];
 
+        // 1. Check SQLite for previous sync time
+        String since = SqliteStorage.loadLastSyncedAt(targetRepo);
+        Instant startRunTime = Instant.now();
+
+        if (since != null) {
+            System.out.printf("  ↳ Performing delta sync (fetching changes since %s)...%n", since);
+        } else {
+            System.out.println("  ↳ Performing full sync...");
+        }
+
         GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
-        List<Issue> allIssues = client.getOpenIssues(owner, repoName);
+
+        // 2. Query GitHub passing the dynamic "since" timestamp
+        List<Issue> allIssues = client.getOpenIssues(owner, repoName, since);
 
         List<Issue> realIssues = allIssues.stream()
                 .filter(issue -> !issue.isPullRequest())
@@ -105,9 +117,12 @@ public class SyncCommand implements Callable<Integer> {
                 .filter(Issue::isPullRequest)
                 .toList();
 
-        // Save data to SQLite tables
+        // 3. Save delta records (new issues insert; modified issues overwrite automatically!)
         SqliteStorage.saveIssues(targetRepo, realIssues);
         SqliteStorage.saveIssues(targetRepo, pullRequests);
+
+        // 4. Update the sync timestamp in SQLite
+        SqliteStorage.updateLastSyncedAt(targetRepo, startRunTime.toString());
 
         System.out.println("Repository: " + targetRepo);
         System.out.println("Open Issues Saved: " + realIssues.size());

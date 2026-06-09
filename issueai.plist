@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>issueai</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/ramanathan/apache/issue-analyzer/issueai-master.sh</string>
+    </array>
+
+    <!-- Run every 1 hour (3600 seconds) -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <!-- Run once immediately as soon as you turn on or wake up your Mac -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Logging paths -->
+    <key>StandardOutPath</key>
+    <string>/Users/ramanathan/apache/issue-analyzer/issueai_run.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/ramanathan/apache/issue-analyzer/issueai_run.log</string>
+</dict>
+</plist>

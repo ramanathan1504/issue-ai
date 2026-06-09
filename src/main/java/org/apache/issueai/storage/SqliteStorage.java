@@ -563,4 +563,28 @@ public class SqliteStorage {
         }
     }
 
+    public static String loadLastSyncedAt(String repository) throws SQLException {
+        String sql = "SELECT last_synced_at FROM monitored_repositories WHERE repository = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("last_synced_at");
+                }
+            }
+        }
+        return null;
+    }
+
+    public static void updateLastSyncedAt(String repository, String timestamp) throws SQLException {
+        String sql = "UPDATE monitored_repositories SET last_synced_at = ? WHERE repository = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, timestamp);
+            ps.setString(2, repository);
+            ps.executeUpdate();
+        }
+    }
+
 }
