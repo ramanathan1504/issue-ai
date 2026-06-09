@@ -5,12 +5,15 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
 public class DatabaseManager {
 
     private static final String DB_URL = "jdbc:sqlite:data/issue_intelligence.db";
+    private static final int CURRENT_SCHEMA_VERSION = 2;
 
     public static Connection getConnection() throws SQLException {
         try {
@@ -22,7 +25,157 @@ public class DatabaseManager {
     }
 
     public static void initializeSchema() {
-        String createIssuesTable = """
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("PRAGMA foreign_keys = ON;");
+
+            // 1. Ensure version tracking table exists
+            stmt.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY);");
+
+            // 2. Read current version
+            int version = 0;
+            try (ResultSet rs = stmt.executeQuery("SELECT version FROM schema_version;")) {
+                if (rs.next()) {
+                    version = rs.getInt("version");
+                }
+            }
+
+            // 3. Run migrations sequentially
+            if (version == 0) {
+                if (!tableExists(conn, "issues")) {
+                    // Fresh Database - Build everything from scratch
+                    System.out.println("Initializing fresh SQLite database schema...");
+                    buildFreshSchema(conn);
+                    setVersion(conn, CURRENT_SCHEMA_VERSION);
+                } else if (!columnExists(conn, "issues", "repository")) {
+                    // Legay DB - Upgrade from single-key (V1) to composite-key (V2)
+                    System.out.println("Upgrading database schema from Version 1 to Version 2...");
+                    migrateV1toV2(conn);
+                    setVersion(conn, CURRENT_SCHEMA_VERSION);
+                    System.out.println("Database schema upgrade completed successfully.");
+                } else {
+                    // Database is already V2 but did not have the version row registered
+                    setVersion(conn, CURRENT_SCHEMA_VERSION);
+                }
+            } else if (version < CURRENT_SCHEMA_VERSION) {
+                // Here we can add future incremental migrations (e.g., version 2 to 3, etc.)
+                // (e.g. if (version < 3) { runMigrationToV3(conn); setVersion(conn, 3); })
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Database schema initialization failed: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static void buildFreshSchema(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(getCreateIssuesTableSql());
+            stmt.execute(getCreateLabelsTableSql());
+            stmt.execute(getCreateAiAnalysisTableSql());
+            stmt.execute(getCreateEmbeddingsTableSql());
+            stmt.execute(getCreateCrossRepoLinksTableSql());
+            stmt.execute(getCreateSnapshotsTableSql());
+            stmt.execute(getCreateJiraMentionsTableSql());
+            stmt.execute(getCreateMonitoredTableSql());
+            stmt.execute(getSeedMonitoredTableSql());
+        }
+    }
+
+    private static void migrateV1toV2(Connection conn) throws SQLException {
+        // Safe migration: Rename V1 tables, create V2 schemas, copy data, drop V1 tables
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("PRAGMA foreign_keys = OFF;"); // Temporarily disable FK checks for renames
+        }
+
+        migrateTable(conn, "issues",
+                "number, title, body, state, comments, created_at, updated_at, is_pull_request, author, author_association",
+                getCreateIssuesTableSql());
+
+        migrateTable(conn, "labels",
+                "issue_number, label_name",
+                getCreateLabelsTableSql());
+
+        migrateTable(conn, "ai_analysis",
+                "issue_number, severity, confidence, reason",
+                getCreateAiAnalysisTableSql());
+
+        migrateTable(conn, "embeddings",
+                "issue_number, vector",
+                getCreateEmbeddingsTableSql());
+
+        migrateTable(conn, "snapshots",
+                "date, critical_issues, high_priority, stale_prs, duplicate_clusters",
+                getCreateSnapshotsTableSql());
+
+        // Create new tables that were not present in Version 1
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute(getCreateCrossRepoLinksTableSql());
+            stmt.execute(getCreateJiraMentionsTableSql());
+            stmt.execute(getCreateMonitoredTableSql());
+            stmt.execute(getSeedMonitoredTableSql());
+            stmt.execute("PRAGMA foreign_keys = ON;"); // Re-enable foreign key constraints
+        }
+    }
+
+    private static void migrateTable(Connection conn, String tableName, String fields, String createTableSql) throws SQLException {
+        if (tableExists(conn, tableName)) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("ALTER TABLE " + tableName + " RENAME TO old_" + tableName + ";");
+                stmt.execute(createTableSql);
+
+                // Copy older data into the new table, seeding 'apache/logging-log4j2' as the default repository
+                stmt.execute("INSERT INTO " + tableName + " (repository, " + fields + ") " +
+                        "SELECT 'apache/logging-log4j2', " + fields + " FROM old_" + tableName + ";");
+
+                stmt.execute("DROP TABLE old_" + tableName + ";");
+            }
+        } else {
+            // If the table did not exist previously, simply create it freshly
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(createTableSql);
+            }
+        }
+    }
+
+    private static boolean tableExists(Connection conn, String tableName) throws SQLException {
+        String sql = "SELECT name FROM sqlite_master WHERE type='table' AND name=?;";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, tableName);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
+        String sql = "PRAGMA table_info(" + tableName + ");";
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                if (columnName.equalsIgnoreCase(rs.getString("name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void setVersion(Connection conn, int version) throws SQLException {
+        String sql = "INSERT OR REPLACE INTO schema_version (version) VALUES (?);";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, version);
+            ps.executeUpdate();
+        }
+    }
+
+    // ==========================================
+    // Table Creation SQL Strings
+    // ==========================================
+
+    private static String getCreateIssuesTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS issues (
                     repository TEXT,
                     number INTEGER,
@@ -38,8 +191,10 @@ public class DatabaseManager {
                     PRIMARY KEY (repository, number)
                 );
                 """;
+    }
 
-        String createLabelsTable = """
+    private static String getCreateLabelsTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS labels (
                     repository TEXT,
                     issue_number INTEGER,
@@ -48,8 +203,10 @@ public class DatabaseManager {
                     FOREIGN KEY (repository, issue_number) REFERENCES issues(repository, number) ON DELETE CASCADE
                 );
                 """;
+    }
 
-        String createAiAnalysisTable = """
+    private static String getCreateAiAnalysisTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS ai_analysis (
                     repository TEXT,
                     issue_number INTEGER,
@@ -60,8 +217,10 @@ public class DatabaseManager {
                     FOREIGN KEY (repository, issue_number) REFERENCES issues(repository, number) ON DELETE CASCADE
                 );
                 """;
+    }
 
-        String createEmbeddingsTable = """
+    private static String getCreateEmbeddingsTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS embeddings (
                     repository TEXT,
                     issue_number INTEGER,
@@ -70,8 +229,10 @@ public class DatabaseManager {
                     FOREIGN KEY (repository, issue_number) REFERENCES issues(repository, number) ON DELETE CASCADE
                 );
                 """;
+    }
 
-        String createCrossRepoLinksTable = """
+    private static String getCreateCrossRepoLinksTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS cross_repo_links (
                     source_repo TEXT,
                     source_number INTEGER,
@@ -82,8 +243,10 @@ public class DatabaseManager {
                     FOREIGN KEY (source_repo, source_number) REFERENCES issues(repository, number) ON DELETE CASCADE
                 );
                 """;
+    }
 
-        String createSnapshotsTable = """
+    private static String getCreateSnapshotsTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS snapshots (
                     repository TEXT,
                     date TEXT,
@@ -94,7 +257,10 @@ public class DatabaseManager {
                     PRIMARY KEY (repository, date)
                 );
                 """;
-        String createJiraMentionsTable = """
+    }
+
+    private static String getCreateJiraMentionsTableSql() {
+        return """
                 CREATE TABLE IF NOT EXISTS jira_mentions (
                     repository TEXT,
                     issue_number INTEGER,
@@ -103,25 +269,34 @@ public class DatabaseManager {
                     FOREIGN KEY (repository, issue_number) REFERENCES issues(repository, number) ON DELETE CASCADE
                 );
                 """;
+    }
 
-        // Add this line inside the try block:
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement()) {
+    private static String getCreateMonitoredTableSql() {
+        return """
+                CREATE TABLE IF NOT EXISTS monitored_repositories (
+                    repository TEXT PRIMARY KEY,
+                    enabled BOOLEAN DEFAULT 1
+                );
+                """;
+    }
 
-            stmt.execute("PRAGMA foreign_keys = ON;");
-
-            stmt.execute(createIssuesTable);
-            stmt.execute(createLabelsTable);
-            stmt.execute(createAiAnalysisTable);
-            stmt.execute(createEmbeddingsTable);
-            stmt.execute(createCrossRepoLinksTable);
-            stmt.execute(createSnapshotsTable);
-            stmt.execute(createJiraMentionsTable);
-
-
-        } catch (SQLException e) {
-            System.err.println("Failed to initialize database schema: " + e.getMessage());
-            e.printStackTrace();
-        }
+    private static String getSeedMonitoredTableSql() {
+        return """
+                INSERT OR IGNORE INTO monitored_repositories (repository, enabled) VALUES 
+                ('apache/logging-log4j2', 1),
+                ('apache/kafka', 1),
+                ('apache/spark', 1),
+                ('apache/flink', 1),
+                ('apache/ignite', 1),
+                ('quarkusio/quarkus', 1),
+                ('elastic/elasticsearch', 1),
+                ('opensearch-project/OpenSearch', 1),
+                ('open-telemetry/opentelemetry-java-instrumentation', 1),
+                ('spring-projects/spring-boot', 1),
+                ('apache/solr', 1),
+                ('apache/camel', 1),
+                ('apache/tomcat', 1),
+                ('apache/cassandra', 1);
+                """;
     }
 }

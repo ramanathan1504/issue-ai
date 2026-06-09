@@ -22,6 +22,7 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Label.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequest.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequestMarker.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/RepoIssue.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/TrendSnapshot.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/User.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/report/MarkdownReportWriter.java

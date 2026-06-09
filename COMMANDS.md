@@ -14,21 +14,28 @@ All subcommands support the dynamic repository targeting flag:
 ## 1. `sync`
 Fetches open issues and pull requests from GitHub, maps the author's organizational status, and stores them in the local SQLite database.
 
+### Options
+*   `-a`, `--all` : Sequentially synchronizes all active repositories seeded in the local SQLite registry [1, 2].
+*   `--add` : Add a new owner/repository string (e.g. `elastic/logstash`) to the database watchlist [1].
+*   `--remove` : Remove/disable a repository from the database watchlist.
+
 ### Usage
 ```bash
 export GITHUB_TOKEN="your_personal_access_token"
 
-# Sync Apache Log4j (retains backwards-compatibility)
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync
+# Sync all active, enabled repositories in your registry sequentially (All 14+ projects)
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --all
 
-# Sync Apache Kafka
+# Register a new custom repository to your local database watchlist
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --add elastic/logstash
+
+# Sync a single repository manually
 java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync -r apache/kafka
 ```
 
 ### Outputs
 *   Saves records directly to the `issues` and `labels` database tables.
 *   **Background Ecosystem Parser:** Automatically scans the title and description text for cross-project dependencies (e.g., `apache/kafka#1234`) and JIRA keys (e.g., `KAFKA-20362`), writing them to the `cross_repo_links` and `jira_mentions` tables [1, 2].
-*   Prints the top 10 most commented, oldest, and recently updated issues in the terminal.
 
 ---
 
@@ -88,22 +95,24 @@ Performs an offline semantic vector lookup on your backlog. It vectors your sear
 *   `[0]` (Positional) : The plain-text search query (wrap in quotes if it contains spaces).
 
 ### Options
+*   `-g`, `--global` : Run a global search across all repositories stored in the database [1].
 *   `-m`, `--model` : The Ollama embedding model to use (Default: `all-minilm`).
 *   `-n`, `--limit` : The maximum number of search results to return (Default: `5`).
 
 ### Usage
 ```bash
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "network appender timeout crash" -r apache/logging-log4j2
+# Search across all 14+ open-source databases in SQLite at once!
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "deadlock in Kafka appender" --global
 ```
 
 ---
 
 ## 6. `prs`
-Analyzes cached pull requests for development and review health metrics.
+Analyzes pull requests stored in `prs` table for maintenance metrics.
 
 ### Detection Categories
 *   **Stale PRs:** No update activity for over 30 days.
-*   **Reviews Needed:** PR has 0 comments (used as a compile-safe proxy for no active reviews).
+*   **Reviews Needed:** PR has 0 comments (used as a proxy for no active reviews).
 *   **Critical Fixes:** PR matches issue numbers referencing an issue flagged as `Critical` by the severity analyzer.
 
 ### Usage

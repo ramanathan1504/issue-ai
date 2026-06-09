@@ -36,17 +36,23 @@ public class MarkdownReportWriter implements ReportWriter {
         // Query Ecosystem Connections from SQLite
         List<String> inboundLinks = SqliteStorage.loadInboundLinks(repository);
         List<String> outboundLinks = SqliteStorage.loadOutboundLinks(repository);
-        List<JiraBridgeLink> jiraBridges = SqliteStorage.loadJiraBridges(repository);
+        List<org.apache.issueai.model.JiraBridgeLink> jiraBridges = SqliteStorage.loadJiraBridges(repository);
 
         Instant now = Instant.now();
 
-        // 1. Gather and calculate Stale PRs detailed data (with Author & Org Member checks)
+        // 1. Gather and calculate Stale PRs detailed data (Excluding Dependabot and checking members)
         List<String> stalePrLines = new ArrayList<>();
         for (Issue pr : prs) {
             try {
+                String authorName = pr.user() != null ? pr.user().login() : "unknown";
+
+                // Filter out automated Dependabot pull requests to keep the report clean
+                if ("dependabot[bot]".equalsIgnoreCase(authorName)) {
+                    continue;
+                }
+
                 long daysSinceUpdate = ChronoUnit.DAYS.between(Instant.parse(pr.updated_at()), now);
                 if (daysSinceUpdate > 30) {
-                    String authorName = pr.user() != null ? pr.user().login() : "unknown";
                     String orgStatus = pr.isOrgMember() ? " [Member]" : "";
 
                     stalePrLines.add(String.format(
@@ -94,9 +100,9 @@ public class MarkdownReportWriter implements ReportWriter {
         // 4. Calculate detailed duplicate groups
         List<List<Issue>> duplicateClusters = getDuplicateClusters(issues, embeddings);
 
-        // 5. Construct Markdown Output
+        // 5. Construct Markdown Output with dynamic repository title
         StringBuilder md = new StringBuilder();
-        md.append("# Apache Log4j Weekly Health Report\n\n");
+        md.append(String.format("# %s Weekly Health Report%n%n", repository));
         md.append("Generated: ").append(LocalDate.now().toString()).append("\n\n");
 
         md.append("## Summary\n\n");
@@ -168,7 +174,7 @@ public class MarkdownReportWriter implements ReportWriter {
             md.append("(none)\n\n");
         } else {
             md.append("The following issues discuss identical JIRA keys across repositories:\n");
-            for (JiraBridgeLink bridge : jiraBridges) {
+            for (org.apache.issueai.model.JiraBridgeLink bridge : jiraBridges) {
                 md.append(String.format(
                         "- Our Issue **#%d** matches **%s#%d** via JIRA Key **%s**%n",
                         bridge.localNumber(),

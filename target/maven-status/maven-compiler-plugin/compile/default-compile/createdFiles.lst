@@ -8,6 +8,7 @@ org/apache/issueai/storage/SqliteStorage.class
 org/apache/issueai/github/GitHubClient.class
 org/apache/issueai/cli/SyncCommand.class
 org/apache/issueai/analyzer/Severity.class
+org/apache/issueai/model/RepoIssue.class
 org/apache/issueai/cli/TrendCommand.class
 org/apache/issueai/analyzer/IssueAnalysis.class
 org/apache/issueai/llm/OllamaClient.class

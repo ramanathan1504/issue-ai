@@ -10,7 +10,10 @@ import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(name = "sync")
+@Command(
+        name = "sync",
+        description = "Pull live GitHub issues and PRs and save to local SQLite tables"
+)
 public class SyncCommand implements Callable<Integer> {
 
     @Option(
@@ -20,19 +23,78 @@ public class SyncCommand implements Callable<Integer> {
     )
     private String repository;
 
+    @Option(
+            names = {"-a", "--all"},
+            description = "Sequentially synchronize all active repositories seeded in SQLite"
+    )
+    private boolean all;
+
+    @Option(
+            names = {"--add"},
+            description = "Add a new GitHub repository to the local monitoring database"
+    )
+    private String addRepo;
+
+    @Option(
+            names = {"--remove"},
+            description = "Remove a GitHub repository from the local monitoring database"
+    )
+    private String removeRepo;
+
     @Override
     public Integer call() throws Exception {
-        String[] parts = repository.split("/");
+        // A. Handle Registry: Add Repository
+        if (addRepo != null) {
+            SqliteStorage.saveMonitoredRepository(addRepo, true);
+            System.out.printf("Successfully registered '%s' in SQLite. You can now sync it anytime!%n", addRepo);
+            return 0;
+        }
+
+        // B. Handle Registry: Remove Repository
+        if (removeRepo != null) {
+            SqliteStorage.deleteMonitoredRepository(removeRepo);
+            System.out.printf("Successfully removed '%s' from SQLite monitoring database.%n", removeRepo);
+            return 0;
+        }
+
+        // C. Batch Sync All Enabled Repositories
+        if (all) {
+            List<String> activeRepos = SqliteStorage.loadMonitoredRepositories();
+            if (activeRepos.isEmpty()) {
+                System.out.println("No active monitored repositories found in your local SQLite registry.");
+                return 0;
+            }
+            System.out.printf("Starting batch sync for %d active repositories...%n%n", activeRepos.size());
+            for (String repo : activeRepos) {
+                System.out.println("==================================================");
+                System.out.printf("Syncing: %s%n", repo);
+                System.out.println("==================================================");
+                try {
+                    syncRepository(repo);
+                } catch (Exception e) {
+                    System.err.printf("  ↳ [Error] Failed to sync '%s': %s%n%n", repo, e.getMessage());
+                }
+            }
+            System.out.println("==================================================");
+            System.out.println("Batch synchronization completed successfully.");
+            System.out.println("==================================================");
+            return 0;
+        }
+
+        // D. Fallback to standard single sync
+        return syncRepository(repository);
+    }
+
+    private int syncRepository(String targetRepo) throws Exception {
+        String[] parts = targetRepo.split("/");
         if (parts.length != 2) {
-            System.err.println("Invalid repository format. Please use 'owner/name' (e.g., 'apache/kafka').");
+            System.err.printf("Invalid repository format '%s'. Please use 'owner/name' (e.g. 'apache/kafka').%n", targetRepo);
             return 1;
         }
         String owner = parts[0];
         String repoName = parts[1];
 
         GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
-
-        // Dynamically fetch open issues for the requested owner/repo
         List<Issue> allIssues = client.getOpenIssues(owner, repoName);
 
         List<Issue> realIssues = allIssues.stream()
@@ -43,17 +105,18 @@ public class SyncCommand implements Callable<Integer> {
                 .filter(Issue::isPullRequest)
                 .toList();
 
-        // Save data to SQLite using the target repository namespace
-        SqliteStorage.saveIssues(repository, realIssues);
-        SqliteStorage.saveIssues(repository, pullRequests);
+        // Save data to SQLite tables
+        SqliteStorage.saveIssues(targetRepo, realIssues);
+        SqliteStorage.saveIssues(targetRepo, pullRequests);
 
-        System.out.println("Repository: " + repository);
+        System.out.println("Repository: " + targetRepo);
         System.out.println("Open Issues Saved: " + realIssues.size());
         System.out.println("Open PRs Saved: " + pullRequests.size());
 
         printMostCommented(realIssues);
         printOldest(realIssues);
         printRecentlyUpdated(realIssues);
+        System.out.println();
 
         return 0;
     }

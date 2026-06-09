@@ -18,6 +18,7 @@ import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.model.Label;
 import org.apache.issueai.model.PullRequestMarker;
+import org.apache.issueai.model.RepoIssue;
 import org.apache.issueai.model.TrendSnapshot;
 import org.apache.issueai.model.User;
 
@@ -308,7 +309,8 @@ public class SqliteStorage {
                     long num = rs.getLong("issue_number");
                     String jsonVector = rs.getString("vector");
                     double[] vector = MAPPER.readValue(jsonVector, double[].class);
-                    results.add(new IssueEmbedding(num, vector));
+                    // Pass 3 parameters (repository, num, vector)
+                    results.add(new IssueEmbedding(repository, num, vector));
                 }
             }
         }
@@ -373,7 +375,12 @@ public class SqliteStorage {
                 SELECT a.issue_number AS local_number, b.repository AS external_repo, b.issue_number AS external_number, a.jira_key
                 FROM jira_mentions a
                 JOIN jira_mentions b ON a.jira_key = b.jira_key
-                WHERE a.repository = ? AND b.repository != ?;
+                WHERE a.repository = ? 
+                  AND b.repository != ?
+                  AND a.jira_key NOT IN (
+                      'UTF-8', 'UTF-16', 'JDK-17', 'JDK-21', 'JDK-8', 'JDK-11', 
+                      'SHA-256', 'SHA-1', 'LICENSE-2', 'ISO-8859'
+                  );
                 """;
         List<org.apache.issueai.model.JiraBridgeLink> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
@@ -443,4 +450,117 @@ public class SqliteStorage {
         }
         return results;
     }
+
+    // ==========================================
+    // 6. Global Multi-Repo Operations
+    // ==========================================
+
+    public static List<IssueEmbedding> loadAllEmbeddings() throws SQLException, IOException {
+        String sql = "SELECT * FROM embeddings;";
+        List<IssueEmbedding> results = new ArrayList<>();
+
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                String repo = rs.getString("repository");
+                long num = rs.getLong("issue_number");
+                String jsonVector = rs.getString("vector");
+                double[] vector = MAPPER.readValue(jsonVector, double[].class);
+                results.add(new IssueEmbedding(repo, num, vector));
+            }
+        }
+        return results;
+    }
+
+    public static List<RepoIssue> loadAllIssues() throws SQLException {
+        return loadAllIssuesInternal(false);
+    }
+
+    public static List<RepoIssue> loadAllPullRequests() throws SQLException {
+        return loadAllIssuesInternal(true);
+    }
+
+    private static List<RepoIssue> loadAllIssuesInternal(boolean isPullRequest) throws SQLException {
+        String queryIssuesSql = "SELECT * FROM issues WHERE is_pull_request = ?;";
+        String queryLabelsSql = "SELECT repository, issue_number, label_name FROM labels;";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement psIssues = conn.prepareStatement(queryIssuesSql);
+             PreparedStatement psLabels = conn.prepareStatement(queryLabelsSql)) {
+
+            // Fetch and group labels in memory by composite key (repository + "_" + issue_number)
+            Map<String, List<Label>> labelsMap = new HashMap<>();
+            try (ResultSet rsLabels = psLabels.executeQuery()) {
+                while (rsLabels.next()) {
+                    String repo = rsLabels.getString("repository");
+                    long issueNum = rsLabels.getLong("issue_number");
+                    String labelName = rsLabels.getString("label_name");
+                    labelsMap.computeIfAbsent(repo + "_" + issueNum, k -> new ArrayList<>()).add(new Label(labelName));
+                }
+            }
+
+            psIssues.setBoolean(1, isPullRequest);
+            List<RepoIssue> results = new ArrayList<>();
+            try (ResultSet rs = psIssues.executeQuery()) {
+                while (rs.next()) {
+                    long num = rs.getLong("number");
+                    String repo = rs.getString("repository");
+                    List<Label> labelsList = labelsMap.getOrDefault(repo + "_" + num, List.of());
+
+                    Issue issue = new Issue(
+                            num,
+                            rs.getString("title"),
+                            rs.getString("body"),
+                            rs.getString("state"),
+                            rs.getInt("comments"),
+                            rs.getString("created_at"),
+                            rs.getString("updated_at"),
+                            rs.getBoolean("is_pull_request") ? new PullRequestMarker() : null,
+                            labelsList,
+                            new User(rs.getString("author")),
+                            rs.getString("author_association")
+                    );
+                    results.add(new RepoIssue(repo, issue));
+                }
+            }
+            return results;
+        }
+    }
+    // ==========================================
+    // 6. Monitored Repositories Operations
+    // ==========================================
+
+    public static List<String> loadMonitoredRepositories() throws SQLException {
+        String sql = "SELECT repository FROM monitored_repositories WHERE enabled = 1;";
+        List<String> results = new ArrayList<>();
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                results.add(rs.getString("repository"));
+            }
+        }
+        return results;
+    }
+
+    public static void saveMonitoredRepository(String repository, boolean enabled) throws SQLException {
+        String sql = "INSERT OR REPLACE INTO monitored_repositories (repository, enabled) VALUES (?, ?);";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            ps.setBoolean(2, enabled);
+            ps.executeUpdate();
+        }
+    }
+
+    public static void deleteMonitoredRepository(String repository) throws SQLException {
+        String sql = "DELETE FROM monitored_repositories WHERE repository = ?;";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, repository);
+            ps.executeUpdate();
+        }
+    }
+
 }

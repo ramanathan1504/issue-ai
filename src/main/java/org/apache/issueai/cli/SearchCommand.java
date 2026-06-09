@@ -9,6 +9,7 @@ import java.util.concurrent.Callable;
 import org.apache.issueai.llm.OllamaClient;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
+import org.apache.issueai.model.RepoIssue;
 import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -34,6 +35,12 @@ public class SearchCommand implements Callable<Integer> {
     private String repository;
 
     @Option(
+            names = {"-g", "--global"},
+            description = "Perform a global search across all repositories in the database"
+    )
+    private boolean global;
+
+    @Option(
             names = {"-m", "--model"},
             description = "Ollama embedding model to use",
             defaultValue = "all-minilm"
@@ -49,24 +56,29 @@ public class SearchCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        // 1. Load issues and PRs to map matches back to titles
-        List<Issue> issues = SqliteStorage.loadIssues(repository);
-        List<Issue> prs = SqliteStorage.loadPullRequests(repository);
+        Map<String, Issue> issueMap = new HashMap<>();
+        List<IssueEmbedding> embeddings;
 
-        if (issues.isEmpty() && prs.isEmpty()) {
-            System.err.printf("No local data found for '%s'. Please run 'sync' first.%n", repository);
-            return 1;
+        if (global) {
+            System.out.println("Loading global issues and pull requests from SQLite...");
+            List<RepoIssue> allIssues = SqliteStorage.loadAllIssues();
+            List<RepoIssue> allPrs = SqliteStorage.loadAllPullRequests();
+            embeddings = SqliteStorage.loadAllEmbeddings();
+
+            // Map using composite key: repository + "_" + issue_number
+            allIssues.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
+            allPrs.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
+        } else {
+            List<Issue> issues = SqliteStorage.loadIssues(repository);
+            List<Issue> prs = SqliteStorage.loadPullRequests(repository);
+            embeddings = SqliteStorage.loadEmbeddings(repository);
+
+            issues.forEach(i -> issueMap.put(repository + "_" + i.number(), i));
+            prs.forEach(p -> issueMap.put(repository + "_" + p.number(), p));
         }
 
-        // Combine both collections into a single lookup map
-        Map<Long, Issue> issueMap = new HashMap<>();
-        issues.forEach(i -> issueMap.put(i.number(), i));
-        prs.forEach(p -> issueMap.put(p.number(), p));
-
-        // 2. Load cached vector embeddings from SQLite
-        List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
         if (embeddings.isEmpty()) {
-            System.err.printf("No vector embeddings found for '%s'. Please run 'duplicates' first to generate them.%n", repository);
+            System.err.println("No vector embeddings found in the database. Please run 'duplicates' first to generate them.");
             return 1;
         }
 
@@ -75,40 +87,37 @@ public class SearchCommand implements Callable<Integer> {
         double[] queryVector;
 
         try {
-            // Generate the embedding vector for the search query
             queryVector = client.generateEmbedding(query);
         } catch (IOException | InterruptedException e) {
-            System.err.printf("  ↳ [Error] Failed to generate embedding for query: %s%n", e.getMessage());
-            System.err.println("Verify Ollama is running ('ollama serve') and the model is pulled ('ollama pull " + modelName + "').");
+            System.err.printf("  ↳ [Error] Failed to generate embedding: %s%n", e.getMessage());
             return 1;
         }
 
-        System.out.printf("Scanning database and calculating cosine similarity...%n%n");
+        System.out.println("Scanning vectors and calculating cosine similarity...\n");
         List<SearchResult> results = new ArrayList<>();
 
-        // 3. Calculate similarity score between query and each issue vector
         for (IssueEmbedding emb : embeddings) {
-            Issue matchedIssue = issueMap.get(emb.issueNumber());
+            String compositeKey = emb.repository() + "_" + emb.issueNumber();
+            Issue matchedIssue = issueMap.get(compositeKey);
             if (matchedIssue != null) {
                 double similarity = cosineSimilarity(queryVector, emb.vector());
-                results.add(new SearchResult(matchedIssue, similarity));
+                results.add(new SearchResult(emb.repository(), matchedIssue, similarity));
             }
         }
 
-        // Sort results by similarity score descending
         results.sort((a, b) -> Double.compare(b.similarity(), a.similarity()));
 
-        // 4. Output the top matched search results
-        System.out.printf("Top %d Semantic Search Results for '%s':%n", Math.min(limit, results.size()), repository);
+        System.out.printf("Top %d Global Semantic Search Results:%n", Math.min(limit, results.size()));
         System.out.println("==========================================================================");
 
         for (int i = 0; i < Math.min(limit, results.size()); i++) {
             SearchResult res = results.get(i);
             String typeBadge = res.issue().isPullRequest() ? "[PR]" : "[Issue]";
             System.out.printf(
-                    "%d. %s #%d  Similarity: %.2f%n",
+                    "%d. %s %s#%d  Similarity: %.2f%n",
                     i + 1,
                     typeBadge,
+                    res.repoName(),
                     res.issue().number(),
                     res.similarity());
             System.out.printf("   Title: %s%n%n", res.issue().title());
@@ -135,6 +144,5 @@ public class SearchCommand implements Callable<Integer> {
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
-    // Helper class to encapsulate sorted results
-    private static record SearchResult(Issue issue, double similarity) {}
+    private static record SearchResult(String repoName, Issue issue, double similarity) {}
 }

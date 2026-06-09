@@ -82,7 +82,8 @@ public class DuplicatesCommand implements Callable<Integer> {
         // Save embeddings cache if we generated new ones
         if (cacheUpdated) {
             List<IssueEmbedding> newCacheList = new ArrayList<>();
-            vectorMap.forEach((k, v) -> newCacheList.add(new IssueEmbedding(k, v)));
+            // Passed 'repository' as the first argument
+            vectorMap.forEach((k, v) -> newCacheList.add(new IssueEmbedding(repository, k, v)));
             SqliteStorage.saveEmbeddings(repository, newCacheList);
             System.out.println("  ↳ Local embeddings database updated.");
         }

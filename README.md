@@ -2,7 +2,7 @@
 
 An offline-first, AI-powered CLI tool designed to assist Apache Log4j maintainers with issue triage, duplicate identification, security audits, and pull request tracking across multiple repositories.
 
-By migrating to a central SQLite database and running compact models locally via Ollama, the tool runs entirely offline, making it highly data-efficient and friendly for low-bandwidth connections.
+By utilizing a central SQLite database, implementing an **automatic schema migration engine**, and running compact models locally via Ollama, the tool runs entirely offline, making it highly data-efficient and friendly for low-bandwidth connections.
 
 ---
 
@@ -46,7 +46,7 @@ The resulting executable will be generated at:
 
 ---
 
-## Local Data Structure
+## Local Data Structure & Migrations
 
 On its first boot, the program initializes a single, zero-configuration database file. All data is managed relationally:
 
@@ -58,13 +58,16 @@ issue-analyzer/
     └── logging-log4j2-issues-report-20260609-143834.md  # Generated weekly reports
 ```
 
+### Schema Migration Engine
+The `DatabaseManager` contains an **automatic, non-destructive migration engine** [2]. Any future schema modifications (such as adding new columns or tables) are safely performed on application boot without dropping or overwriting your previously synchronized data [2].
+
 ---
 
 ## Multi-Repository & Ecosystem Tracking
 
 Because the database utilizes **composite keys** (combining `repository` and `number`), you can sync and track multiple repositories side-by-side [3].
 
-Additionally, the system automatically tracks **Ecosystem Connections**:
+Our database pre-seeds **14 major enterprise Java repositories** (including Log4j, Kafka, Spark, Quarkus, OpenTelemetry, Spring Boot, and Elasticsearch) [2]. Additionally, the system automatically tracks **Ecosystem Connections**:
 *   **JIRA Bridge Pattern:** Automatically detects where developers across different projects discuss identical JIRA issues (e.g., `KAFKA-XXXX`, `LOG4J2-XXXX`) and links them as cross-repo overlaps [1.1.1].
 *   **Downstream Links:** Detects when other synced repositories (like Kafka or Spark) link to your core project's issues [2].
 
@@ -72,27 +75,30 @@ Additionally, the system automatically tracks **Ecosystem Connections**:
 
 ## Recommended Workflow Loop
 
-For standard repository analysis, execute the following workflow (using Apache Log4j as an example):
+For standard repository analysis, execute the following workflow:
 
 ```bash
-# 1. Sync live GitHub data to local SQLite tables
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync -r apache/logging-log4j2
+# 1. Sync all active target repositories sequentially (Crawl your entire ecosystem)
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --all
 
-# 2. Run local LLM to predict priorities
+# 2. Add any other project you want to track to the local watchlist
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --add elastic/logstash
+
+# 3. Run local LLM to predict priorities
 java -jar target/issue-ai-0.1.0-SNAPSHOT.jar analyze -m qwen2.5:0.5b -r apache/logging-log4j2
 
-# 3. Cache semantic duplicate index
+# 4. Cache semantic duplicate index
 java -jar target/issue-ai-0.1.0-SNAPSHOT.jar duplicates -t 0.70 -r apache/logging-log4j2
 
-# 4. Search backlog offline semantically
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "PatternLayout truncation deadlock" -r apache/logging-log4j2
+# 5. Search across all 15 projects simultaneously for overlapping topics
+java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "deadlock on network connection appender" --global
 
-# 5. Run a consolidated triage audit on a specific issue
+# 6. Run a consolidated triage audit on a specific issue
 java -jar target/issue-ai-0.1.0-SNAPSHOT.jar triage 4088 -r apache/logging-log4j2
 
-# 6. Compile the weekly health report
+# 7. Compile the weekly health report
 java -jar target/issue-ai-0.1.0-SNAPSHOT.jar report -r apache/logging-log4j2
 
-# 7. Capture a snapshot to track project trends
+# 8. Capture a snapshot to track project trends
 java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend --save -r apache/logging-log4j2
 ```
