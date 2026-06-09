@@ -41,31 +41,39 @@ public class DatabaseManager {
                 }
             }
 
-            // 3. Run migrations sequentially
             if (version == 0) {
                 if (!tableExists(conn, "issues")) {
                     // Fresh Database - Build everything from scratch
                     System.out.println("Initializing fresh SQLite database schema...");
                     buildFreshSchema(conn);
                     setVersion(conn, CURRENT_SCHEMA_VERSION);
+                    version = CURRENT_SCHEMA_VERSION;
                 } else if (!columnExists(conn, "issues", "repository")) {
-                    // Legay DB - Upgrade from single-key (V1) to composite-key (V2)
+                    // Legacy DB - Upgrade from single-key (V1) to composite-key (V2)
                     System.out.println("Upgrading database schema from Version 1 to Version 2...");
                     migrateV1toV2(conn);
-                    setVersion(conn, CURRENT_SCHEMA_VERSION);
-                    System.out.println("Database schema upgrade completed successfully.");
+                    setVersion(conn, 2);
+                    System.out.println("Database schema upgrade to Version 2 completed.");
+                    version = 2;
                 } else {
                     // Database is already V2 but did not have the version row registered
-                    setVersion(conn, CURRENT_SCHEMA_VERSION);
+                    setVersion(conn, 2);
+                    version = 2;
                 }
-            } else if (version < CURRENT_SCHEMA_VERSION) {
+            }
+
+            // Upgrading to Version 3 safely by checking if column already exists
+            if (version < 3) {
                 System.out.println("Upgrading database schema to Version 3 (Adding delta-sync tracking)...");
-                try (Statement migrationStmt = conn.createStatement()) {
-                    migrationStmt.execute("ALTER TABLE monitored_repositories ADD COLUMN last_synced_at TEXT;");
+                // Only run ALTER TABLE if the column does not already exist
+                if (!columnExists(conn, "monitored_repositories", "last_synced_at")) {
+                    try (Statement migrationStmt = conn.createStatement()) {
+                        migrationStmt.execute("ALTER TABLE monitored_repositories ADD COLUMN last_synced_at TEXT;");
+                    }
                 }
                 setVersion(conn, 3);
                 System.out.println("Database schema upgraded to Version 3 successfully.");
-                version = 3; // Update local variable for any subsequent checks
+                version = 3;
             }
 
         } catch (SQLException e) {
