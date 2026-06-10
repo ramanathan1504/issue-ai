@@ -20,7 +20,7 @@ The CLI utilizes an Adaptive Routing pattern:
 
 ## 🛠 Prerequisites
 
-*   **Java 21**
+*   **Java 17**
 *   **Apache Maven**
 *   **Ollama** (Local models: `qwen2.5:7b`, `qwen2.5:0.5b`, `all-minilm`)
 
