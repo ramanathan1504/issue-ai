@@ -48,15 +48,6 @@ public class SearchCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-
-        if (repository == null) {
-            repository = SqliteStorage.loadConfig("default.repository");
-            if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error(
-                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
-                return 1;
-            }
-        }
         // Resolve dynamic embedding model
         if (modelName == null) {
             modelName = SqliteStorage.loadConfig("ollama.model.embedding");
@@ -78,6 +69,13 @@ public class SearchCommand implements Callable<Integer> {
                     ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
             allPrs.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
         } else {
+            if (repository == null) {
+                repository = SqliteStorage.loadConfig("default.repository");
+                if (repository == null || repository.trim().isEmpty()) {
+                    LOGGER.error("No target repository specified. Use '-r owner/name' or run 'setup'.");
+                    return 1;
+                }
+            }
             List<Issue> issues = SqliteStorage.loadIssues(repository);
             List<Issue> prs = SqliteStorage.loadPullRequests(repository);
             embeddings = SqliteStorage.loadEmbeddings(repository);
