@@ -793,4 +793,17 @@ public class SqliteStorage {
         }
         return results;
     }
+
+    public static Map<String, String> loadAllConfigs() throws SQLException {
+        String sql = "SELECT key, value FROM system_config;";
+        Map<String, String> configs = new HashMap<>();
+        try (Connection conn = DatabaseManager.getConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                configs.put(rs.getString("key"), rs.getString("value"));
+            }
+        }
+        return configs;
+    }
 }
