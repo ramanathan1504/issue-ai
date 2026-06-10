@@ -1,7 +1,10 @@
 package org.apache.issueai.cli;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -20,7 +23,10 @@ import picocli.CommandLine.Option;
         description = "Pull live GitHub issues and PRs and save to local SQLite tables"
 )
 public class SyncCommand implements Callable<Integer> {
+
     private static final Logger LOGGER = LogManager.getLogger(SyncCommand.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     @Option(
             names = {"--me"},
             description = "Dynamically sync and build your personal contribution profile from GitHub"
@@ -61,14 +67,14 @@ public class SyncCommand implements Callable<Integer> {
         // A. Handle Registry: Add Repository
         if (addRepo != null) {
             SqliteStorage.saveMonitoredRepository(addRepo, true);
-            System.out.printf("Successfully registered '%s' in SQLite. You can now sync it anytime!%n", addRepo);
+            LOGGER.info("Successfully registered '{}' in SQLite. You can now sync it anytime!", addRepo);
             return 0;
         }
 
         // B. Handle Registry: Remove Repository
         if (removeRepo != null) {
             SqliteStorage.deleteMonitoredRepository(removeRepo);
-            System.out.printf("Successfully removed '%s' from SQLite monitoring database.%n", removeRepo);
+            LOGGER.info("Successfully removed '{}' from SQLite monitoring database.", removeRepo);
             return 0;
         }
 
@@ -76,23 +82,23 @@ public class SyncCommand implements Callable<Integer> {
         if (all) {
             List<String> activeRepos = SqliteStorage.loadMonitoredRepositories();
             if (activeRepos.isEmpty()) {
-                System.out.println("No active monitored repositories found in your local SQLite registry.");
+                LOGGER.warn("No active monitored repositories found in your local SQLite registry.");
                 return 0;
             }
-            System.out.printf("Starting batch sync for %d active repositories...%n%n", activeRepos.size());
+            LOGGER.info("Starting batch sync for {} active repositories...", activeRepos.size());
             for (String repo : activeRepos) {
-                System.out.println("==================================================");
-                System.out.printf("Syncing: %s%n", repo);
-                System.out.println("==================================================");
+                LOGGER.info("==================================================");
+                LOGGER.info("Syncing: {}", repo);
+                LOGGER.info("==================================================");
                 try {
                     syncRepository(repo);
                 } catch (Exception e) {
-                    System.err.printf("  ↳ [Error] Failed to sync '%s': %s%n%n", repo, e.getMessage());
+                    LOGGER.error("  ↳ [Error] Failed to sync '{}': {}", repo, e.getMessage());
                 }
             }
-            System.out.println("==================================================");
-            System.out.println("Batch synchronization completed successfully.");
-            System.out.println("==================================================");
+            LOGGER.info("==================================================");
+            LOGGER.info("Batch synchronization completed successfully.");
+            LOGGER.info("==================================================");
             return 0;
         }
 
@@ -103,7 +109,7 @@ public class SyncCommand implements Callable<Integer> {
     private int syncRepository(String targetRepo) throws Exception {
         String[] parts = targetRepo.split("/");
         if (parts.length != 2) {
-            System.err.printf("Invalid repository format '%s'. Please use 'owner/name'.%n", targetRepo);
+            LOGGER.error("Invalid repository format '{}'. Please use 'owner/name'.", targetRepo);
             return 1;
         }
         String owner = parts[0];
@@ -114,9 +120,9 @@ public class SyncCommand implements Callable<Integer> {
         Instant startRunTime = Instant.now();
 
         if (since != null) {
-            System.out.printf("  ↳ Performing delta sync (fetching changes since %s)...%n", since);
+            LOGGER.info("  ↳ Performing delta sync (fetching changes since {})...", since);
         } else {
-            System.out.println("  ↳ Performing full sync...");
+            LOGGER.info("  ↳ Performing full sync...");
         }
 
         GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
@@ -139,60 +145,45 @@ public class SyncCommand implements Callable<Integer> {
         // 4. Update the sync timestamp in SQLite
         SqliteStorage.updateLastSyncedAt(targetRepo, startRunTime.toString());
 
-        System.out.println("Repository: " + targetRepo);
-        System.out.println("Open Issues Saved: " + realIssues.size());
-        System.out.println("Open PRs Saved: " + pullRequests.size());
+        LOGGER.info("Repository: {}", targetRepo);
+        LOGGER.info("Open Issues Saved: {}", realIssues.size());
+        LOGGER.info("Open PRs Saved: {}", pullRequests.size());
 
         printMostCommented(realIssues);
         printOldest(realIssues);
         printRecentlyUpdated(realIssues);
-        System.out.println();
+        LOGGER.info("");
 
         return 0;
     }
 
     private void printMostCommented(List<Issue> issues) {
-        System.out.println("\nTop 10 Most Commented Issues");
-
+        LOGGER.info("--- Top 10 Most Commented Issues ---");
         issues.stream()
                 .sorted(Comparator.comparingInt(Issue::comments).reversed())
                 .limit(10)
                 .forEach(issue ->
-                        System.out.printf(
-                                "#%d (%d comments) %s%n",
-                                issue.number(),
-                                issue.comments(),
-                                issue.title()));
+                        LOGGER.info("#{} ({} comments) {}", issue.number(), issue.comments(), issue.title()));
     }
 
     private void printOldest(List<Issue> issues) {
-        System.out.println("\nOldest Open Issues");
-
+        LOGGER.info("--- Oldest Open Issues ---");
         issues.stream()
-                .sorted(Comparator.comparing(
-                        issue -> Instant.parse(issue.created_at())))
+                .sorted(Comparator.comparing(issue -> Instant.parse(issue.created_at())))
                 .limit(10)
                 .forEach(issue ->
-                        System.out.printf(
-                                "#%d %s%n",
-                                issue.number(),
-                                issue.title()));
+                        LOGGER.info("#{} {}", issue.number(), issue.title()));
     }
 
     private void printRecentlyUpdated(List<Issue> issues) {
-        System.out.println("\nRecently Updated");
-
+        LOGGER.info("--- Recently Updated ---");
         issues.stream()
-                .sorted(Comparator.comparing(
-                                (Issue issue) -> Instant.parse(issue.updated_at()))
-                        .reversed())
+                .sorted(Comparator.comparing((Issue issue) -> Instant.parse(issue.updated_at())).reversed())
                 .limit(10)
                 .forEach(issue ->
-                        System.out.printf(
-                                "#%d %s%n",
-                                issue.number(),
-                                issue.title()));
+                        LOGGER.info("#{} {}", issue.number(), issue.title()));
     }
+
     private int syncPersonalProfile() throws Exception {
         String username = SqliteStorage.loadConfig("github.username");
         String embedModel = SqliteStorage.loadConfig("ollama.model.embedding");
@@ -250,7 +241,7 @@ public class SyncCommand implements Callable<Integer> {
         GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
         List<Issue> mergedPrs = client.searchIssuesAndPrs(searchQuery);
 
-        // A. Crawl Diffs and Generate PR Summaries (Skip if empty, but DO NOT exit early)
+        // A. Crawl Diffs and Generate PR Summaries
         if (mergedPrs.isEmpty()) {
             LOGGER.info("No new merged pull requests found since the last execution.");
         } else {
@@ -324,7 +315,7 @@ public class SyncCommand implements Callable<Integer> {
             LOGGER.info("Generating semantic Developer Expertise Vector using model '{}'...", embedModel);
             try {
                 double[] vector = embedOllama.generateEmbedding(experienceDoc.toString().trim());
-                String jsonVector = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(vector);
+                String jsonVector = MAPPER.writeValueAsString(vector);
                 SqliteStorage.saveConfig("developer.vector", jsonVector);
                 LOGGER.info("  ↳ Personal Developer Expertise Vector successfully saved to SQLite.");
             } catch (Exception e) {
@@ -347,10 +338,9 @@ public class SyncCommand implements Callable<Integer> {
 
                 try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(localPath)) {
                     List<java.nio.file.Path> files = stream
-                            .filter(java.nio.file.Files::isRegularFile) // Exclude directories
+                            .filter(java.nio.file.Files::isRegularFile)
                             .filter(p -> {
                                 String name = p.toString().toLowerCase();
-                                // Exclude binary files and macOS metadata system files
                                 return !name.endsWith(".png")
                                         && !name.endsWith(".pdf")
                                         && !name.endsWith(".zip")
@@ -371,13 +361,44 @@ public class SyncCommand implements Callable<Integer> {
                         String absolutePath = file.toAbsolutePath().toString();
                         long lastModified = java.nio.file.Files.getLastModifiedTime(file).toMillis();
 
-                        // 1. Clean Content-Based Comparison: Load previously cached text
-                        String cachedContent = SqliteStorage.loadPersonalChatContent(absolutePath);
-                        String content = java.nio.file.Files.readString(file, java.nio.charset.StandardCharsets.UTF_8);
+                        byte[] fileBytes = java.nio.file.Files.readAllBytes(file);
+                        String content = new String(fileBytes, java.nio.charset.StandardCharsets.UTF_8);
 
-                        // 2. Only ingest if the file is new or the text content actually changed!
+                        // Clean Content-Based Comparison
+                        String cachedContent = SqliteStorage.loadPersonalChatContent(absolutePath);
+
                         if (cachedContent == null || !content.equals(cachedContent)) {
                             LOGGER.info("    Ingesting new or modified chat log: {}...", fileName);
+
+                            // 1. SMART JSON PARSER FOR CHATGPT / CLAUDE EXPORTS
+                            if (fileName.endsWith(".json")) {
+                                try {
+                                    JsonNode root = MAPPER.readTree(fileBytes);
+                                    if (root.isArray()) {
+                                        LOGGER.info("      ↳ Detected JSON Export Array. Splitting into individual memories...");
+                                        for (int i = 0; i < root.size(); i++) {
+                                            JsonNode chatNode = root.get(i);
+                                            String title = chatNode.has("title") ? chatNode.get("title").asText() : fileName + "_Part_" + i;
+                                            String chatContent = chatNode.toString();
+                                            // Truncate massively long chats to fit into embedding context window
+                                            if (chatContent.length() > 5000) {
+                                                chatContent = chatContent.substring(chatContent.length() - 5000);
+                                            }
+
+                                            double[] chatVector = embedOllama.generateEmbedding(chatContent);
+                                            String subFileName = title.replaceAll("[^a-zA-Z0-9-_]", "_") + ".json";
+                                            // Save chunk with uniquely appended hash path
+                                            SqliteStorage.savePersonalChatMemory(absolutePath + "#" + i, subFileName, lastModified, chatContent, chatVector);
+                                        }
+                                        LOGGER.info("      ↳ Successfully indexed {} historical JSON conversations.", root.size());
+                                        continue;
+                                    }
+                                } catch (Exception e) {
+                                    LOGGER.warn("      ↳ Not a valid JSON Array, falling back to standard text ingestion.");
+                                }
+                            }
+
+                            // 2. STANDARD TEXT PARSER (For Markdown / TXT or non-array JSON)
                             try {
                                 double[] chatVector = embedOllama.generateEmbedding(content);
                                 SqliteStorage.savePersonalChatMemory(absolutePath, fileName, lastModified, content, chatVector);

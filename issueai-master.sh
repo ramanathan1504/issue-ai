@@ -19,10 +19,8 @@ if [ -z "$GITHUB_TOKEN" ]; then
   fi
 fi
 
-# Double check if we successfully retrieved a token
 if [ -z "$GITHUB_TOKEN" ]; then
   echo "Error: GITHUB_TOKEN is not set and was not found in macOS Keychain." >&2
-  echo "Please run: security add-generic-password -a \"\$USER\" -s github_token -w \"<YOUR_TOKEN>\" -U" >&2
   exit 1
 fi
 
@@ -38,14 +36,12 @@ echo ""
 echo "=================================================="
 echo "Phase 2: Syncing Backlog Registries (SQLite)"
 echo "=================================================="
-# Sync all active, enabled repositories
 issue-ai sync --all
 
 echo ""
 echo "=================================================="
 echo "Phase 2b: Syncing Personal Profile & Google Drive"
 echo "=================================================="
-# Auto-ingest new Google Drive chats and merged PRs
 issue-ai sync --me
 
 echo ""
@@ -70,42 +66,82 @@ issue-ai trend --save -r apache/logging-log4j2
 
 echo ""
 echo "=================================================="
-echo "Phase 6: Running Automated Security & Link Audit"
+echo "Phase 6: Advanced macOS Alert & Notification Engine"
 echo "=================================================="
 
-# A. Extract current hidden critical issue numbers
-CURRENT_HIDDEN=$(sqlite3 data/issue_intelligence.db "
-SELECT i.number FROM issues i
-JOIN ai_analysis a ON i.number = a.issue_number AND i.repository = a.repository
-WHERE i.repository = 'apache/logging-log4j2'
-  AND a.severity = 'Critical'
-  AND i.number NOT IN (SELECT issue_number FROM labels WHERE label_name LIKE '%security%')
-ORDER BY i.number ASC;")
+# Helper function for beautiful macOS notifications
+function send_mac_alert() {
+    local icon="$1"
+    local title="$2"
+    local subtitle="$3"
+    local message="$4"
+    # Uses the 'Glass' system sound for a crisp notification chime
+    osascript -e "tell application \"System Events\" to display notification \"$message\" with title \"$icon $title\" subtitle \"$subtitle\" sound name \"Glass\""
+}
 
-STATE_FILE="data/last_hidden_criticals.txt"
+# Helper function to track state and only notify on NEW items
+function check_and_notify() {
+    local state_file="$1"
+    local current_data="$2"
+    local icon="$3"
+    local title="$4"
+    local subtitle="$5"
 
-if [ -f "$STATE_FILE" ]; then
-    OLD_HIDDEN=$(cat "$STATE_FILE")
-else
-    OLD_HIDDEN=""
-fi
-
-NEW_ISSUES=""
-for num in $CURRENT_HIDDEN; do
-    if [[ ! " $OLD_HIDDEN " =~ " $num " ]]; then
-        NEW_ISSUES="$NEW_ISSUES #$num"
+    if [ -f "$state_file" ]; then
+        OLD_DATA=$(cat "$state_file")
+    else
+        OLD_DATA=""
     fi
-done
 
-echo "$CURRENT_HIDDEN" > "$STATE_FILE"
+    NEW_ITEMS=""
+    for item in $current_data; do
+        if [[ ! " $OLD_DATA " =~ " $item " ]]; then
+            NEW_ITEMS="$NEW_ITEMS #$item"
+        fi
+    done
 
-if [ ! -z "$NEW_ISSUES" ]; then
-    NEW_ISSUES_TRIMMED=$(echo "$NEW_ISSUES" | xargs)
-    osascript -e "display notification \"New Hidden Critical Issues found in Log4j: $NEW_ISSUES_TRIMMED\" with title \"Issue-AI Triage Alert\""
-    echo "  ↳ [Alert] Detected NEW Hidden Critical issues: $NEW_ISSUES_TRIMMED"
-else
-    echo "  ↳ [Status] No new hidden critical issues detected since last run."
-fi
+    echo "$current_data" > "$state_file"
+
+    if [ ! -z "$NEW_ITEMS" ]; then
+        TRIMMED_ITEMS=$(echo "$NEW_ITEMS" | xargs)
+        send_mac_alert "$icon" "$title" "$subtitle" "$TRIMMED_ITEMS"
+        echo "  ↳ [$title] Alert sent for: $TRIMMED_ITEMS"
+    else
+        echo "  ↳ [$title] No new updates."
+    fi
+}
+
+# --- QUERY 1: Global Hidden Criticals (Security Risks) ---
+CURRENT_HIDDEN=$(sqlite3 data/issue_intelligence.db "
+SELECT i.number FROM issues i JOIN ai_analysis a ON i.number = a.issue_number AND i.repository = a.repository
+WHERE i.repository = 'apache/logging-log4j2' AND a.severity = 'Critical'
+AND i.number NOT IN (SELECT issue_number FROM labels WHERE label_name LIKE '%security%') ORDER BY i.number ASC;")
+
+check_and_notify "data/state_hidden.txt" "$CURRENT_HIDDEN" "🚨" "Log4j Security Alert" "New Hidden Criticals Found!"
+
+# --- QUERY 2: Brand New Critical Issues (Last 24 Hours) ---
+NEW_CRITICALS=$(sqlite3 data/issue_intelligence.db "
+SELECT i.number FROM issues i JOIN ai_analysis a ON i.number = a.issue_number AND i.repository = a.repository
+WHERE i.repository = 'apache/logging-log4j2' AND a.severity = 'Critical'
+AND julianday('now') - julianday(i.created_at) <= 1 ORDER BY i.number ASC;")
+
+check_and_notify "data/state_new_criticals.txt" "$NEW_CRITICALS" "🛡️" "Log4j Triage Alert" "New Critical Bugs Reported Today!"
+
+# --- QUERY 3: My Personal Stale PRs (Inactivity > 30 Days) ---
+MY_USERNAME=$(sqlite3 data/issue_intelligence.db "SELECT value FROM system_config WHERE key = 'github.username';")
+MY_STALE_PRS=$(sqlite3 data/issue_intelligence.db "
+SELECT number FROM issues
+WHERE repository = 'apache/logging-log4j2' AND is_pull_request = 1
+AND author = '$MY_USERNAME' AND julianday('now') - julianday(updated_at) > 30 ORDER BY number ASC;")
+
+check_and_notify "data/state_my_stale.txt" "$MY_STALE_PRS" "👤" "Personal Developer Alert" "Your PRs are going stale!"
+
+echo ""
+echo "=================================================="
+echo "Phase 7: Automated Vault Backup & Preservation"
+echo "=================================================="
+# Compresses your entire database securely and auto-rotates old files
+issue-ai backup
 
 echo ""
 echo "=================================================="

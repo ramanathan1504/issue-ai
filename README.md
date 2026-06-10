@@ -9,12 +9,12 @@ An advanced, offline-first, AI-powered Personal Copilot designed for Apache Log4
 This platform separates public repository data from your private developer identity to ensure absolute security and zero context-leakage:
 
 1.  **The Repository Engine (Public):** Syncs 14+ enterprise Java repositories (Kafka, Quarkus, Elastic, etc.) into a unified SQLite database. It automatically extracts cross-project dependencies, applies JIRA Bridge matching, and tracks ecosystem health.
-2.  **The Personal Copilot (Private):** Ingests your 1-year GitHub PR footprint and your local Google Drive AI Studio chat logs to build a **Developer Expertise Vector**.
+2.  **The Personal Copilot (Private):** Ingests your 1-year GitHub PR footprint and your local Google Drive AI Studio/ChatGPT chat logs to build a **Developer Expertise Vector**.
 
-### ⚡ Hybrid AI Intelligence
-The CLI utilizes a Hybrid-Agent routing pattern:
+### ⚡ Omni-Cloud Hybrid AI Intelligence
+The CLI utilizes an Adaptive Routing pattern:
 *   **Tier 1 (Local):** Executes fast, privacy-first reasoning and semantic RAG using local Ollama models (`qwen2.5:7b` & `all-minilm`).
-*   **Tier 2 (Cloud):** Seamlessly bridges to Google Gemini API during interactive chat sessions when deep, expert-level architectural code synthesis is required.
+*   **Tier 2 (Cloud):** Seamlessly bridges to **Google Gemini**, **OpenAI GPT-4o**, or **Anthropic Claude 3.5** during interactive chat sessions when deep, expert-level architectural code synthesis is required.
 
 ---
 
@@ -34,7 +34,7 @@ The CLI utilizes a Hybrid-Agent routing pattern:
     ```
 
 2.  **Run the Interactive Wizard:**
-    This command securely registers your GitHub Token, Gemini API Key, Ollama models, and Google Drive paths into the SQLite `system_config` table.
+    This command securely registers your GitHub Token, Cloud API Keys (Gemini/OpenAI/Anthropic), Ollama models, and Google Drive paths into the SQLite `system_config` table.
     ```bash
     issue-ai setup
     ```
@@ -50,7 +50,7 @@ The CLI utilizes a Hybrid-Agent routing pattern:
 
 ## ⏱ Background Automation (macOS Launchd)
 
-The project includes an hourly background daemon that automatically fetches updates, parses AI logs, runs intelligence vectors, and issues native desktop notifications if a Hidden Critical security threat is detected.
+The project includes an hourly background daemon that automatically fetches updates, parses AI logs, chunks JSON chat exports, runs intelligence vectors, and issues native desktop notifications if a Hidden Critical security threat is detected.
 
 1. Configure `issueai-master.sh` with your correct paths.
 2. Load the macOS `.plist` scheduler:
@@ -82,8 +82,8 @@ issue-ai duplicates -t 0.85
 # 4. Generate your Personal Contribution Roadmap Report
 issue-ai report --me
 
-# 5. Open a live Hybrid Chat to solve a specific issue
-issue-ai chat 1666
+# 5. Open a live Omni-Chat to solve a specific issue using Claude 3.5
+issue-ai chat 1666 --claude
 ```
 
 ---

@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
+import org.apache.issueai.llm.ClaudeClient;
 import org.apache.issueai.llm.GeminiClient;
 import org.apache.issueai.llm.OllamaClient;
+import org.apache.issueai.llm.OpenAiClient;
 import org.apache.issueai.model.ChatMemory;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
@@ -17,7 +19,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "chat", description = "Open an interactive REPL chat session with local alignment and Gemini escalation")
+@Command(name = "chat", description = "Open an interactive REPL chat session with local alignment and multi-cloud escalation")
 public class ChatCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(ChatCommand.class);
@@ -28,15 +30,22 @@ public class ChatCommand implements Callable<Integer> {
     @Option(names = {"-r", "--repo"}, defaultValue = "apache/logging-log4j2")
     private String repository;
 
+    @Option(names = {"--gemini"}, description = "Use Gemini API for cloud escalation (Default)")
+    private boolean useGemini;
+
+    @Option(names = {"--openai"}, description = "Use OpenAI API for cloud escalation")
+    private boolean useOpenAi;
+
+    @Option(names = {"--claude"}, description = "Use Anthropic Claude API for cloud escalation")
+    private boolean useClaude;
+
     @Override
     public Integer call() throws Exception {
         // 1. Resolve Local Configs
         String modelName = SqliteStorage.loadConfig("ollama.model.guidance");
-        if (modelName == null) modelName = "qwen2.5:7b";
-
-        String geminiKey = retrieveGeminiKey();
-        String geminiModel = SqliteStorage.loadConfig("gemini.model");
-        if (geminiModel == null) geminiModel = "gemini-1.5-flash-latest";
+        if (modelName == null) {
+            modelName = "qwen2.5:7b";
+        }
 
         // 2. Load Issue Context
         List<Issue> issues = SqliteStorage.loadIssues(repository);
@@ -51,7 +60,7 @@ public class ChatCommand implements Callable<Integer> {
             return 1;
         }
 
-        // 3. Load Personal Memory Context
+        // 3. Load Personal Memory Context (RAG)
         List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
         double[] targetVector = null;
         for (IssueEmbedding emb : embeddings) {
@@ -72,24 +81,52 @@ public class ChatCommand implements Callable<Integer> {
             }
         }
 
+        // 4. Initialize Local AI
         OllamaClient localClient = new OllamaClient(modelName);
         if (!localClient.isModelAvailable()) {
             LOGGER.error("Ollama model '{}' is not available. Please start Ollama.", modelName);
             return 1;
         }
 
+        // 5. Initialize Cloud AI Clients based on Flags
+        GeminiClient geminiClient = null;
+        OpenAiClient openAiClient = null;
+        ClaudeClient claudeClient = null;
+        String cloudProviderName = "Google Gemini";
+
+        if (useOpenAi) {
+            String key = retrieveKey("OPENAI_API_KEY", "openai_api_key");
+            if (key == null) { LOGGER.error("OpenAI API Key missing."); return 1; }
+            String model = SqliteStorage.loadConfig("openai.model");
+            openAiClient = new OpenAiClient(key, model == null ? "gpt-4o" : model);
+            cloudProviderName = "OpenAI GPT";
+        } else if (useClaude) {
+            String key = retrieveKey("ANTHROPIC_API_KEY", "anthropic_api_key");
+            if (key == null) { LOGGER.error("Anthropic API Key missing."); return 1; }
+            String model = SqliteStorage.loadConfig("claude.model");
+            claudeClient = new ClaudeClient(key, model == null ? "claude-3-5-sonnet-20240620" : model);
+            cloudProviderName = "Anthropic Claude";
+        } else {
+            // Default to Gemini
+            String key = retrieveKey("GEMINI_API_KEY", "gemini_api_key");
+            if (key == null) { LOGGER.error("Gemini API Key missing."); return 1; }
+            String model = SqliteStorage.loadConfig("gemini.model");
+            geminiClient = new GeminiClient(key, model == null ? "gemini-1.5-flash-latest" : model);
+        }
+
+        // 6. The REPL (Read-Eval-Print Loop)
         Scanner scanner = new Scanner(System.in);
         StringBuilder conversationHistory = new StringBuilder();
         String lastUserPrompt = "";
 
-        System.out.println("==================================================");
-        System.out.printf(" INTERACTIVE COPILOT SESSION: Issue #%d%n", issueNumber);
-        System.out.println(" Backend: Local First (" + modelName + ") -> Gemini Escalation");
-        System.out.println(" Type your questions below. Type 'exit' to end.");
-        System.out.println("==================================================\n");
+        LOGGER.info("==================================================");
+        LOGGER.info(" INTERACTIVE COPILOT SESSION: Issue #{}", issueNumber);
+        LOGGER.info(" Backend: Local First ({}) -> Escalation ({})", modelName, cloudProviderName);
+        LOGGER.info(" Type 'exit' to save and end session.");
+        LOGGER.info("==================================================\n");
 
         while (true) {
-            System.out.print("\n> You (or type 'y' to escalate your last prompt to Gemini): ");
+            LOGGER.info("> Type your response (or type 'y' to escalate previous prompt to Cloud):");
             String userInput = scanner.nextLine().trim();
 
             if (userInput.equalsIgnoreCase("exit") || userInput.equalsIgnoreCase("quit")) {
@@ -102,15 +139,9 @@ public class ChatCommand implements Callable<Integer> {
 
             // --- ESCALATION & ALIGNMENT FLOW ---
             if (userInput.equalsIgnoreCase("y") && !lastUserPrompt.isEmpty()) {
-                if (geminiKey == null || geminiKey.trim().isEmpty()) {
-                    LOGGER.error("GEMINI_API_KEY is missing. Cannot escalate to cloud.");
-                    continue;
-                }
+                LOGGER.info("Bridging request to {} (Cloud Agent)...", cloudProviderName);
 
-                LOGGER.info("Bridging request to Google Gemini (Cloud)...");
-                GeminiClient cloudClient = new GeminiClient(geminiKey, geminiModel);
-
-                String geminiPrompt = String.format("""
+                String cloudPrompt = String.format("""
                         You are an expert Apache Log4j maintainer.
                         We are actively resolving Issue #%d: %s
                         Body: %s
@@ -125,7 +156,11 @@ public class ChatCommand implements Callable<Integer> {
                         """, issueNumber, target.title(), target.body(), conversationHistory.toString(), lastUserPrompt);
 
                 try {
-                    String geminiOutput = cloudClient.generateText(geminiPrompt);
+                    String cloudOutput = "";
+                    if (useOpenAi) cloudOutput = openAiClient.generateText(cloudPrompt);
+                    else if (useClaude) cloudOutput = claudeClient.generateText(cloudPrompt);
+                    else cloudOutput = geminiClient.generateText(cloudPrompt);
+
                     LOGGER.info("Received Cloud Response. Aligning with your local memory profile...");
 
                     String alignmentPrompt = String.format("""
@@ -140,15 +175,15 @@ public class ChatCommand implements Callable<Integer> {
                             1. The expert solution.
                             2. ALIGNMENT CHECK: Does this solution match my past coding patterns? 
                             3. Which specific local files from my past PRs should I apply this to?
-                            """, geminiOutput, memoryContext.toString().isEmpty() ? "(No local memory found)" : memoryContext.toString());
+                            """, cloudOutput, memoryContext.toString().isEmpty() ? "(No local memory found)" : memoryContext.toString());
 
                     String finalAlignedOutput = localClient.generateText(alignmentPrompt);
 
-                    System.out.println("\n================ EXPERT ALIGNED RESPONSE ================");
-                    System.out.println(finalAlignedOutput);
-                    System.out.println("=========================================================\n");
+                    LOGGER.info("\n================ EXPERT ALIGNED RESPONSE ================");
+                    LOGGER.info("\n{}\n", finalAlignedOutput);
+                    LOGGER.info("=========================================================\n");
 
-                    conversationHistory.append("User escalated to Gemini.\nAI (Hybrid): ").append(finalAlignedOutput).append("\n\n");
+                    conversationHistory.append("User escalated to Cloud.\nAI (Hybrid): ").append(finalAlignedOutput).append("\n\n");
 
                 } catch (Exception e) {
                     LOGGER.error("Cloud escalation failed: {}", e.getMessage());
@@ -180,9 +215,9 @@ public class ChatCommand implements Callable<Integer> {
                 try {
                     String localOutput = localClient.generateText(localPrompt);
 
-                    System.out.println("\n================ LOCAL RESPONSE ================");
-                    System.out.println(localOutput);
-                    System.out.println("================================================\n");
+                    LOGGER.info("\n================ LOCAL RESPONSE ================");
+                    LOGGER.info("\n{}\n", localOutput);
+                    LOGGER.info("================================================\n");
 
                     conversationHistory.append("AI (Local): ").append(localOutput).append("\n\n");
 
@@ -195,13 +230,13 @@ public class ChatCommand implements Callable<Integer> {
         return 0;
     }
 
-    private String retrieveGeminiKey() {
-        String key = System.getenv("GEMINI_API_KEY");
+    private String retrieveKey(String envName, String keychainName) {
+        String key = System.getenv(envName);
         if (key != null && !key.trim().isEmpty()) return key;
 
         try {
             Process process = Runtime.getRuntime().exec(new String[]{
-                    "sh", "-c", "security find-generic-password -s gemini_api_key -w 2>/dev/null || true"
+                    "sh", "-c", "security find-generic-password -s " + keychainName + " -w 2>/dev/null || true"
             });
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
@@ -223,6 +258,7 @@ public class ChatCommand implements Callable<Integer> {
         if (normA == 0.0 || normB == 0.0) return 0.0;
         return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
+
     private void saveAndIndexChatHistory(String chatContent, Issue target) {
         try {
             String drivePathsStr = SqliteStorage.loadConfig("drive.paths");
@@ -231,7 +267,6 @@ public class ChatCommand implements Callable<Integer> {
                 return;
             }
 
-            // Grab the first configured directory path to save the session
             String targetDir = drivePathsStr.split(",")[0].trim();
             java.nio.file.Path dirPath = java.nio.file.Paths.get(targetDir);
 
@@ -240,7 +275,6 @@ public class ChatCommand implements Callable<Integer> {
                 return;
             }
 
-            // Generate a clean Markdown file
             String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
             String fileName = String.format("Issue_%d_Resolution_Session_%s.md", issueNumber, timestamp);
             java.nio.file.Path filePath = dirPath.resolve(fileName);
@@ -270,7 +304,6 @@ public class ChatCommand implements Callable<Integer> {
             OllamaClient embedOllama = new OllamaClient(embedModel);
             double[] chatVector = embedOllama.generateEmbedding(finalContent);
 
-            // Inject directly into the live memory table
             SqliteStorage.savePersonalChatMemory(absolutePath, fileName, lastModified, finalContent, chatVector);
             LOGGER.info("  ✔ Session embedded and injected into active memory. Your Copilot is instantly smarter!");
 

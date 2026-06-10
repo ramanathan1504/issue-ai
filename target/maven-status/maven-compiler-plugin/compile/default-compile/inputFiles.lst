@@ -4,6 +4,7 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/Severity.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/SeverityAnalyzer.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/AnalyzeCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/BackupCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/ChatCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/CriticalCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/DuplicatesCommand.java
@@ -11,14 +12,17 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/HiddenCriticalCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/PrsCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/ReportCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/RestoreCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SearchCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SetupCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/SyncCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TrendCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TriageCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/github/GitHubClient.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/ClaudeClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/GeminiClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/OllamaClient.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/OpenAiClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/AiAnalysisResult.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/ChatMemory.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Issue.java
