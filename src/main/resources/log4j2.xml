@@ -22,7 +22,7 @@
         <!-- Route background details to the file while printing CLI relevant logs to the console -->
         <Root level="INFO">
             <AppenderRef ref="Console" level="INFO" />
-            <AppenderRef ref="RollingFile" level="DEBUG" />
+            <AppenderRef ref="File" level="DEBUG" />
         </Root>
     </Loggers>
 </Configuration>
