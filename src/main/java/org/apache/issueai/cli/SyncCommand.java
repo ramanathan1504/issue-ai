@@ -50,16 +50,6 @@ public class SyncCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-
-        if (repository == null) {
-            repository = SqliteStorage.loadConfig("default.repository");
-            if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error(
-                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
-                return 1;
-            }
-        }
-
         if (me) {
             return syncPersonalProfile();
         }
@@ -102,7 +92,16 @@ public class SyncCommand implements Callable<Integer> {
             return 0;
         }
 
-        // D. Fallback to standard single sync
+        // D. Fallback to standard single sync (Check for default repo ONLY here)
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
+
         return syncRepository(repository);
     }
 
