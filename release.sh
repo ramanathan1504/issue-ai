@@ -18,13 +18,15 @@ echo "========================================"
 echo "1. Compiling fresh project..."
 mvn clean package -DskipTests
 
-# Grab the messy Maven output and rename it cleanly for the release
-SOURCE_JAR="target/issue-ai-0.1.0-SNAPSHOT-jar-with-dependencies.jar"
+# The Shade plugin outputs the fat JAR directly to this name
 RELEASE_JAR="target/issue-ai-${VERSION}.jar"
-cp "$SOURCE_JAR" "$RELEASE_JAR"
+
+if [ ! -f "$RELEASE_JAR" ]; then
+    echo "❌ Error: Could not find $RELEASE_JAR!"
+    exit 1
+fi
 
 echo "2. Uploading to GitHub Releases..."
-# Automatically creates the release and uploads the JAR
 gh release create "v$VERSION" "$RELEASE_JAR" --title "Issue-AI v$VERSION" --generate-notes
 
 echo "3. Calculating SHA-256 Hash..."
