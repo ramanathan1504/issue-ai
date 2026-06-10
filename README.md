@@ -1,104 +1,92 @@
 # Log4j Issue Intelligence CLI (`issue-ai`)
 
-An offline-first, AI-powered CLI tool designed to assist Apache Log4j maintainers with issue triage, duplicate identification, security audits, and pull request tracking across multiple repositories.
-
-By utilizing a central SQLite database, implementing an **automatic schema migration engine**, and running compact models locally via Ollama, the tool runs entirely offline, making it highly data-efficient and friendly for low-bandwidth connections.
+An advanced, offline-first, AI-powered Personal Copilot designed for Apache Log4j maintainers. It manages issue triage, cross-repository dependency tracking, and provides real-time, context-aware coding guidance using a Dual-Engine Developer Memory.
 
 ---
 
-## Prerequisites
+## 🧠 The Dual-Engine Architecture
 
-*   **Java 21** (or higher)
+This platform separates public repository data from your private developer identity to ensure absolute security and zero context-leakage:
+
+1.  **The Repository Engine (Public):** Syncs 14+ enterprise Java repositories (Kafka, Quarkus, Elastic, etc.) into a unified SQLite database. It automatically extracts cross-project dependencies, applies JIRA Bridge matching, and tracks ecosystem health.
+2.  **The Personal Copilot (Private):** Ingests your 1-year GitHub PR footprint and your local Google Drive AI Studio chat logs to build a **Developer Expertise Vector**.
+
+### ⚡ Hybrid AI Intelligence
+The CLI utilizes a Hybrid-Agent routing pattern:
+*   **Tier 1 (Local):** Executes fast, privacy-first reasoning and semantic RAG using local Ollama models (`qwen2.5:7b` & `all-minilm`).
+*   **Tier 2 (Cloud):** Seamlessly bridges to Google Gemini API during interactive chat sessions when deep, expert-level architectural code synthesis is required.
+
+---
+
+## 🛠 Prerequisites
+
+*   **Java 21**
 *   **Apache Maven**
-*   **Ollama** (for local AI and embeddings generation)
+*   **Ollama** (Local models: `qwen2.5:7b`, `qwen2.5:0.5b`, `all-minilm`)
 
 ---
 
-## Local AI Setup (Mobile Data Friendly)
+## 🚀 Setup & Installation
 
-To perform AI assessments and duplicate detection without consuming large amounts of cellular data, pull these highly optimized, compact models:
+1.  **Compile the Project:**
+    ```bash
+    mvn clean package
+    ```
+
+2.  **Run the Interactive Wizard:**
+    This command securely registers your GitHub Token, Gemini API Key, Ollama models, and Google Drive paths into the SQLite `system_config` table.
+    ```bash
+    issue-ai setup
+    ```
+
+3.  **Install Global Command (macOS/Linux):**
+    ```bash
+    sudo nano /usr/local/bin/issue-ai
+    # Paste: java -jar /absolute/path/to/target/issue-ai-0.1.0-SNAPSHOT.jar "$@"
+    sudo chmod +x /usr/local/bin/issue-ai
+    ```
+
+---
+
+## ⏱ Background Automation (macOS Launchd)
+
+The project includes an hourly background daemon that automatically fetches updates, parses AI logs, runs intelligence vectors, and issues native desktop notifications if a Hidden Critical security threat is detected.
+
+1. Configure `issueai-master.sh` with your correct paths.
+2. Load the macOS `.plist` scheduler:
+   ```bash
+   launchctl load ~/Library/LaunchAgents/issueai.plist
+   ```
+3. Monitor the background service logs:
+   ```bash
+   tail -f ~/apache/issue-analyzer/issueai_run.log
+   ```
+
+---
+
+## 🔄 The Master Workflow
+
+For standard manual repository analysis:
 
 ```bash
-# 1. Download the ultra-lightweight reasoning model (approx. 390 MB)
-ollama pull qwen2.5:0.5b
+# 1. Sync all 14+ ecosystem repositories (Log4j, Kafka, Spark, Elastic, etc.)
+issue-ai sync --all
 
-# 2. Download the semantic embedding model (approx. 45 MB)
-ollama pull all-minilm
-```
+# 2. Sync your personal 1-year Developer Profile & Google Drive chat logs
+issue-ai sync --me
 
-Ensure the local Ollama background service is running:
-```bash
-ollama serve
+# 3. Analyze the backlog and generate semantic vector embeddings
+issue-ai analyze
+issue-ai duplicates -t 0.85
+
+# 4. Generate your Personal Contribution Roadmap Report
+issue-ai report --me
+
+# 5. Open a live Hybrid Chat to solve a specific issue
+issue-ai chat 1666
 ```
 
 ---
 
-## Building the Project
-
-Compile the project and package it into an executable JAR using Maven:
-
-```bash
-mvn clean package
-```
-
-The resulting executable will be generated at:
-`target/issue-ai-0.1.0-SNAPSHOT.jar`
-
----
-
-## Local Data Structure & Migrations
-
-On its first boot, the program initializes a single, zero-configuration database file. All data is managed relationally:
-
-```text
-issue-analyzer/
-├── data/
-│   └── issue_intelligence.db  # SQLite database storing issues, labels, AI evaluations, embeddings, and snapshots
-└── reports/
-    └── logging-log4j2-issues-report-20260609-143834.md  # Generated weekly reports
-```
-
-### Schema Migration Engine
-The `DatabaseManager` contains an **automatic, non-destructive migration engine** [2]. Any future schema modifications (such as adding new columns or tables) are safely performed on application boot without dropping or overwriting your previously synchronized data [2].
-
----
-
-## Multi-Repository & Ecosystem Tracking
-
-Because the database utilizes **composite keys** (combining `repository` and `number`), you can sync and track multiple repositories side-by-side [3].
-
-Our database pre-seeds **14 major enterprise Java repositories** (including Log4j, Kafka, Spark, Quarkus, OpenTelemetry, Spring Boot, and Elasticsearch) [2]. Additionally, the system automatically tracks **Ecosystem Connections**:
-*   **JIRA Bridge Pattern:** Automatically detects where developers across different projects discuss identical JIRA issues (e.g., `KAFKA-XXXX`, `LOG4J2-XXXX`) and links them as cross-repo overlaps [1.1.1].
-*   **Downstream Links:** Detects when other synced repositories (like Kafka or Spark) link to your core project's issues [2].
-
----
-
-## Recommended Workflow Loop
-
-For standard repository analysis, execute the following workflow:
-
-```bash
-# 1. Sync all active target repositories sequentially (Crawl your entire ecosystem)
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --all
-
-# 2. Add any other project you want to track to the local watchlist
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --add elastic/logstash
-
-# 3. Run local LLM to predict priorities
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar analyze -m qwen2.5:0.5b -r apache/logging-log4j2
-
-# 4. Cache semantic duplicate index
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar duplicates -t 0.70 -r apache/logging-log4j2
-
-# 5. Search across all 15 projects simultaneously for overlapping topics
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "deadlock on network connection appender" --global
-
-# 6. Run a consolidated triage audit on a specific issue
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar triage 4088 -r apache/logging-log4j2
-
-# 7. Compile the weekly health report
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar report -r apache/logging-log4j2
-
-# 8. Capture a snapshot to track project trends
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend --save -r apache/logging-log4j2
-```
+## 💾 Database Migrations
+The tool utilizes a zero-configuration SQLite database (`data/issue_intelligence.db`). It features an **automatic, non-destructive migration engine**. Any future schema modifications are safely performed on application boot without dropping or overwriting your previously synchronized data.

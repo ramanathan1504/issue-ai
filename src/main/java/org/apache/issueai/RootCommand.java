@@ -17,7 +17,9 @@ import picocli.CommandLine.Command;
                 ReportCommand.class,
                 TrendCommand.class,
                 TriageCommand.class,
-                SetupCommand.class
+                SetupCommand.class,
+                GuideCommand.class,
+                ChatCommand.class
         }
 )
 public class RootCommand {

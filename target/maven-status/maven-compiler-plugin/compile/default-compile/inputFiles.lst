@@ -4,8 +4,10 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/Severity.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/analyzer/SeverityAnalyzer.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/AnalyzeCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/ChatCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/CriticalCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/DuplicatesCommand.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/GuideCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/HiddenCriticalCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/PrsCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/ReportCommand.java
@@ -15,13 +17,16 @@
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TrendCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/cli/TriageCommand.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/github/GitHubClient.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/GeminiClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/llm/OllamaClient.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/AiAnalysisResult.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/ChatMemory.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Issue.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/IssueEmbedding.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/JiraBridgeLink.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/Label.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PersonalRecommendation.java
+/Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PrMemory.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequest.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/PullRequestMarker.java
 /Users/ramanathan/apache/issue-analyzer/src/main/java/org/apache/issueai/model/RepoIssue.java

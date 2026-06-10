@@ -744,4 +744,46 @@ public class SqliteStorage {
         return hexString.toString();
     }
 
+    // ==========================================
+    // 11. Personal Memory Retrieval Operations
+    // ==========================================
+
+    public static List<org.apache.issueai.model.PrMemory> loadAllPersonalPrMemories() throws SQLException, IOException {
+        String sql = "SELECT * FROM personal_pr_memory;";
+        List<org.apache.issueai.model.PrMemory> results = new ArrayList<>();
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                double[] vector = MAPPER.readValue(rs.getString("vector"), double[].class);
+                results.add(new org.apache.issueai.model.PrMemory(
+                        rs.getString("repository"),
+                        rs.getLong("pr_number"),
+                        rs.getString("files_changed"),
+                        rs.getString("generated_story"),
+                        vector
+                ));
+            }
+        }
+        return results;
+    }
+
+    public static List<org.apache.issueai.model.ChatMemory> loadAllPersonalChatMemories() throws SQLException, IOException {
+        String sql = "SELECT file_name, content, vector FROM personal_chat_memory;";
+        List<org.apache.issueai.model.ChatMemory> results = new ArrayList<>();
+        try (Connection conn = DatabaseManager.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                double[] vector = MAPPER.readValue(rs.getString("vector"), double[].class);
+                results.add(new org.apache.issueai.model.ChatMemory(
+                        rs.getString("file_name"),
+                        rs.getString("content"),
+                        vector
+                ));
+            }
+        }
+        return results;
+    }
+
 }

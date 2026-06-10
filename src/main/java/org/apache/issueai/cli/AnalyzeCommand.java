@@ -4,11 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.llm.OllamaClient;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.storage.SqliteStorage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -18,6 +22,7 @@ import picocli.CommandLine.Option;
 )
 public class AnalyzeCommand implements Callable<Integer> {
 
+    private static final Logger LOGGER = LogManager.getLogger(AnalyzeCommand.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Option(
@@ -35,7 +40,7 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        // 1. Resolve model dynamically from SQLite config if no CLI option was passed
+        // 1. Resolve model dynamically from SQLite config
         if (modelName == null) {
             modelName = SqliteStorage.loadConfig("ollama.model.triage");
             if (modelName == null) {
@@ -45,18 +50,33 @@ public class AnalyzeCommand implements Callable<Integer> {
 
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
-            System.err.printf("No local issues found for '%s'. Please run 'sync' first.%n", repository);
+            LOGGER.error("No local issues found for '{}'. Please run 'sync' first.", repository);
             return 1;
         }
 
-        System.out.printf("Starting AI Severity Analysis for '%s' using model '%s'...%n", repository, modelName);
-        System.out.println("Connecting to local Ollama service...");
+        // 2. Load existing AI analyses to PREVENT redundant re-analysis
+        List<AiAnalysisResult> existingResults = SqliteStorage.loadAiAnalysis(repository);
+        Set<Long> alreadyAnalyzed = existingResults.stream()
+                .map(AiAnalysisResult::issueNumber)
+                .collect(Collectors.toSet());
+
+        LOGGER.info("Starting AI Severity Analysis for '{}' using model '{}'...", repository, modelName);
 
         OllamaClient client = new OllamaClient(modelName);
-        List<AiAnalysisResult> results = new ArrayList<>();
+        if (!client.isModelAvailable()) {
+            LOGGER.error("Ollama model '{}' is not available. Please start Ollama or pull the model.", modelName);
+            return 1;
+        }
+
+        List<AiAnalysisResult> newResults = new ArrayList<>();
 
         for (Issue issue : issues) {
-            System.out.printf("Analyzing Issue #%d: %s%n", issue.number(), issue.title());
+            // THE SHIELD: If we already analyzed this issue, skip it instantly!
+            if (alreadyAnalyzed.contains(issue.number())) {
+                continue;
+            }
+
+            LOGGER.info("Analyzing Issue #{}: {}", issue.number(), issue.title());
 
             String prompt = String.format("""
                     You are an Apache Log4j maintainer.
@@ -90,18 +110,22 @@ public class AnalyzeCommand implements Callable<Integer> {
                         rawResult.reason()
                 );
 
-                results.add(finalResult);
-                System.out.printf("  ↳ Predicted: %s (Confidence: %.2f)%n", finalResult.severity(), finalResult.confidence());
+                newResults.add(finalResult);
+                LOGGER.info("  ↳ Predicted: {} (Confidence: {})", finalResult.severity(), finalResult.confidence());
 
             } catch (IOException | InterruptedException e) {
-                System.err.printf("  ↳ [Error] Failed to analyze #%d: %s%n", issue.number(), e.getMessage());
-                System.err.println("Verify Ollama is running ('ollama serve') and model is pulled ('ollama pull " + modelName + "').");
-                return 1;
+                LOGGER.warn("  ↳ [Warning] Failed to analyze #{}: {}", issue.number(), e.getMessage());
             }
         }
 
-        SqliteStorage.saveAiAnalysis(repository, results);
-        System.out.printf("%nAI Analysis completed. Results saved to SQLite for '%s'.%n", repository);
+        // Only save to DB if we actually generated new analyses
+        if (!newResults.isEmpty()) {
+            SqliteStorage.saveAiAnalysis(repository, newResults);
+            LOGGER.info("AI Analysis completed. {} new results saved to SQLite for '{}'.", newResults.size(), repository);
+        } else {
+            LOGGER.info("AI Analysis completed. All issues were already analyzed. Zero redundant calls made.");
+        }
+
         return 0;
     }
 }

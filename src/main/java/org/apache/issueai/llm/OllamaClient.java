@@ -124,4 +124,38 @@ public class OllamaClient {
         }
         return false;
     }
+    public String generateText(String prompt) throws IOException, InterruptedException {
+        // Standard payload without the "format": "json" constraint
+        Map<String, Object> requestBody = Map.of(
+                "model", model,
+                "prompt", prompt,
+                "stream", false
+        );
+
+        String jsonPayload = MAPPER.writeValueAsString(requestBody);
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(OLLAMA_URL))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                .timeout(Duration.ofSeconds(45))
+                .build();
+
+        try {
+            LOGGER.debug("Sending text payload to Ollama: {}", jsonPayload);
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                LOGGER.error("Ollama API failed with status code {}: {}", response.statusCode(), response.body());
+                throw new IOException("Ollama returned unexpected HTTP status: " + response.statusCode());
+            }
+
+            Map<?, ?> responseMap = MAPPER.readValue(response.body(), Map.class);
+            return (String) responseMap.get("response");
+
+        } catch (IOException e) {
+            LOGGER.error("Failed to connect or communicate with Ollama service: {}", e.getMessage());
+            throw e;
+        }
+    }
 }

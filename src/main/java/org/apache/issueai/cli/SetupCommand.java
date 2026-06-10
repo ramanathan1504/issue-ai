@@ -23,7 +23,6 @@ public class SetupCommand implements Callable<Integer> {
         LOGGER.info("          issue-ai Interactive Setup Wizard       ");
         LOGGER.info("==================================================");
 
-        // 1. Configure GitHub Username
         String currentUsername = SqliteStorage.loadConfig("github.username");
         LOGGER.info("Current GitHub Username: [ {} ]", currentUsername == null ? "(none)" : currentUsername);
         LOGGER.info("Enter new Username (or press Enter to keep current):");
@@ -34,7 +33,6 @@ public class SetupCommand implements Callable<Integer> {
             LOGGER.info("  ↳ Updated GitHub Username to: {}", currentUsername);
         }
 
-        // 2. Configure Triage Model
         String currentTriageModel = SqliteStorage.loadConfig("ollama.model.triage");
         LOGGER.info("Current AI Triage Model: [ {} ]", currentTriageModel == null ? "(none)" : currentTriageModel);
         LOGGER.info("Enter new Triage Model (or press Enter to keep current):");
@@ -45,7 +43,6 @@ public class SetupCommand implements Callable<Integer> {
             LOGGER.info("  ↳ Updated AI Triage Model to: {}", currentTriageModel);
         }
 
-        // 3. Configure Embedding Model
         String currentEmbeddingModel = SqliteStorage.loadConfig("ollama.model.embedding");
         LOGGER.info("Current Vector Embedding Model: [ {} ]", currentEmbeddingModel == null ? "(none)" : currentEmbeddingModel);
         LOGGER.info("Enter new Embedding Model (or press Enter to keep current):");
@@ -56,7 +53,6 @@ public class SetupCommand implements Callable<Integer> {
             LOGGER.info("  ↳ Updated Vector Embedding Model to: {}", currentEmbeddingModel);
         }
 
-        // 4. Configure Guidance Model
         String currentGuidanceModel = SqliteStorage.loadConfig("ollama.model.guidance");
         LOGGER.info("Current Deep Guidance Model: [ {} ]", currentGuidanceModel == null ? "(none)" : currentGuidanceModel);
         LOGGER.info("Enter new Guidance Model (or press Enter to keep current):");
@@ -66,8 +62,17 @@ public class SetupCommand implements Callable<Integer> {
             currentGuidanceModel = inputGuidance;
             LOGGER.info("  ↳ Updated Deep Guidance Model to: {}", currentGuidanceModel);
         }
+        // Configure Cloud Agent (Gemini Model)
+        String currentGeminiModel = SqliteStorage.loadConfig("gemini.model");
+        LOGGER.info("Current Cloud Agent Model (Gemini): [ {} ]", currentGeminiModel == null ? "(none)" : currentGeminiModel);
+        LOGGER.info("Enter new Gemini Model (e.g., gemini-1.5-flash-latest, gemini-pro) or press Enter to keep current:");
+        String inputGemini = scanner.nextLine().trim();
+        if (!inputGemini.isEmpty()) {
+            SqliteStorage.saveConfig("gemini.model", inputGemini);
+            currentGeminiModel = inputGemini;
+            LOGGER.info("  ↳ Updated Cloud Agent Model to: {}", currentGeminiModel);
+        }
 
-        // 5. Configure Google Drive Locations
         String currentDrivePaths = SqliteStorage.loadConfig("drive.paths");
         LOGGER.info("Current Google Drive Paths: [ {} ]", currentDrivePaths == null ? "(none)" : currentDrivePaths);
         LOGGER.info("Enter new Google Drive Paths (comma-separated, or press Enter to keep current):");
@@ -78,37 +83,39 @@ public class SetupCommand implements Callable<Integer> {
             LOGGER.info("  ↳ Updated Google Drive Paths to: {}", currentDrivePaths);
         }
 
-        // 6. Security Credential Check
+        // 6. Security Credential Check (Multi-OS Support)
         LOGGER.info("Checking secure credentials on this host...");
-        String token = System.getenv("GITHUB_TOKEN");
-        boolean hasKeychain = false;
+        String githubToken = System.getenv("GITHUB_TOKEN");
+        String geminiToken = System.getenv("GEMINI_API_KEY");
+        boolean hasGithubKeychain = false;
+        boolean hasGeminiKeychain = false;
 
-        // Attempt best-effort secure keychain check on macOS
         try {
             String os = System.getProperty("os.name").toLowerCase();
             if (os.contains("mac")) {
-                Process process = Runtime.getRuntime().exec(new String[]{
-                        "sh", "-c", "security find-generic-password -s github_token -w 2>/dev/null || true"
-                });
-                try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                        new java.io.InputStreamReader(process.getInputStream()))) {
-                    String line = reader.readLine();
-                    if (line != null && !line.trim().isEmpty()) {
-                        hasKeychain = true;
-                    }
-                }
+                hasGithubKeychain = checkMacKeychain("github_token");
+                hasGeminiKeychain = checkMacKeychain("gemini_api_key");
             }
-        } catch (Exception ignored) {
-            // Ignore execution errors on non-macOS systems
-        }
+        } catch (Exception ignored) {}
 
-        if (token != null && !token.trim().isEmpty()) {
+        // Log GitHub Token Status
+        if (githubToken != null && !githubToken.trim().isEmpty()) {
             LOGGER.info("  ✔ GITHUB_TOKEN detected in active environment variables.");
-        } else if (hasKeychain) {
+        } else if (hasGithubKeychain) {
             LOGGER.info("  ✔ GITHUB_TOKEN detected securely inside macOS Keychain.");
         } else {
-            LOGGER.warn("  ⚠ WARNING: No GITHUB_TOKEN found! Ensure it is set in env or run:");
-            LOGGER.warn("    security add-generic-password -a \"$USER\" -s github_token -w \"<YOUR_TOKEN>\" -U");
+            LOGGER.warn("  ⚠ WARNING: No GITHUB_TOKEN found!");
+            LOGGER.warn("    Run: security add-generic-password -a \"$USER\" -s github_token -w \"<YOUR_TOKEN>\" -U");
+        }
+
+        // Log Gemini API Key Status
+        if (geminiToken != null && !geminiToken.trim().isEmpty()) {
+            LOGGER.info("  ✔ GEMINI_API_KEY detected in active environment variables.");
+        } else if (hasGeminiKeychain) {
+            LOGGER.info("  ✔ GEMINI_API_KEY detected securely inside macOS Keychain.");
+        } else {
+            LOGGER.warn("  ⚠ WARNING: No GEMINI_API_KEY found (Required for Hybrid/Cloud Triage).");
+            LOGGER.warn("    Run: security add-generic-password -a \"$USER\" -s gemini_api_key -w \"<YOUR_KEY>\" -U");
         }
 
         LOGGER.info("==================================================");
@@ -116,5 +123,16 @@ public class SetupCommand implements Callable<Integer> {
         LOGGER.info("==================================================");
 
         return 0;
+    }
+
+    private boolean checkMacKeychain(String serviceName) throws Exception {
+        Process process = Runtime.getRuntime().exec(new String[]{
+                "sh", "-c", "security find-generic-password -s " + serviceName + " -w 2>/dev/null || true"
+        });
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream()))) {
+            String line = reader.readLine();
+            return line != null && !line.trim().isEmpty();
+        }
     }
 }

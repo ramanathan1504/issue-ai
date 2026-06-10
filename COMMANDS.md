@@ -1,179 +1,105 @@
 # CLI Command Reference (`COMMANDS.md`)
 
-This guide outlines the purpose, configuration options, and execution output for all subcommands in the `issue-ai` CLI platform.
-
----
+This guide outlines all subcommands available in the `issue-ai` CLI platform.
 
 ## Global Options
-
-All subcommands support the dynamic repository targeting flag:
-*   `-r`, `--repo` : The target GitHub repository to analyze in the format `owner/name` (Default: `apache/logging-log4j2`).
+*   `-r`, `--repo` : Target GitHub repository to analyze (Default: `apache/logging-log4j2`).
 
 ---
 
-## 1. `sync`
-Fetches open issues and pull requests from GitHub, maps the author's organizational status, and stores them in the local SQLite database.
+## 🛠 Configuration & Setup
 
-### Options
-*   `-a`, `--all` : Sequentially synchronizes all active repositories seeded in the local SQLite registry [1, 2].
-*   `--add` : Add a new owner/repository string (e.g. `elastic/logstash`) to the database watchlist [1].
-*   `--remove` : Remove/disable a repository from the database watchlist.
-
-### Usage
+### `setup`
+Interactive wizard to configure your secure environment, API keys, Google Drive paths, and AI models.
 ```bash
-export GITHUB_TOKEN="your_personal_access_token"
-
-# Sync all active, enabled repositories in your registry sequentially (All 14+ projects)
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --all
-
-# Register a new custom repository to your local database watchlist
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --add elastic/logstash
-
-# Sync a single repository manually
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync -r apache/kafka
+issue-ai setup
 ```
-
-### Outputs
-*   Saves records directly to the `issues` and `labels` database tables.
-*   **Background Ecosystem Parser:** Automatically scans the title and description text for cross-project dependencies (e.g., `apache/kafka#1234`) and JIRA keys (e.g., `KAFKA-20362`), writing them to the `cross_repo_links` and `jira_mentions` tables [1, 2].
+*   **Security:** Checks active environment variables and the macOS Keychain for `GITHUB_TOKEN` and `GEMINI_API_KEY`.
+*   **Storage:** Saves all configurations to the local SQLite `system_config` table.
 
 ---
 
-## 2. `analyze`
-Performs batch AI Severity Analysis on open issues using a local Ollama reasoning model.
+## 🔄 Data Synchronization
 
-### Options
-*   `-m`, `--model` : The Ollama model name to run (Default: `qwen3:8b`).
+### `sync`
+Fetches issues, pull requests, author profiles, and ecosystem dependencies from GitHub into SQLite.
+*   `-a`, `--all` : Sequentially synchronize all active repositories in your database registry.
+*   `--add <repo>` : Register a new repository to your local database watchlist.
+*   `--remove <repo>` : Remove a repository from the database watchlist.
+*   `--me` : **Personal Sync.** Fetches your 1-year PR history, creates your Developer Expertise Vector, and recursively crawls your Google Drive to index AI Studio chat logs.
 
-### Usage (Mobile Hotspot Friendly)
 ```bash
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar analyze -m qwen2.5:0.5b -r apache/logging-log4j2
-```
-
-### Outputs
-*   Writes results to the `ai_analysis` database table for the specified repository namespace, saving predicted severity classifications (`Critical`, `High`, `Medium`, `Low`), confidence ratings, and reasoning.
-
----
-
-## 3. `hidden-critical`
-Cross-references raw issue metadata in SQLite against AI evaluations to detect issues that maintainers may have underestimated.
-
-### Detection Rules
-1.  **Missed Security:** Issue lacks a `security` label, but the AI flagged it as `Critical`.
-2.  **Overlooked Bug:** Issue is labeled `bug`, has over 15 comments, and the AI flagged it as `Critical` or `High`.
-
-### Usage
-```bash
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar hidden-critical -r apache/logging-log4j2
+issue-ai sync --all
+issue-ai sync --me
 ```
 
 ---
 
-## 4. `duplicates`
-Identifies potential duplicate issues using local vector embeddings.
+## 🤖 The Personal Copilot
 
-### Options
-*   `-m`, `--model` : The Ollama embedding model to use (Default: `all-minilm`).
-*   `-t`, `--threshold` : Cosine similarity threshold from `0.0` to `1.0` (Default: `0.80`).
-
-### Usage
+### `chat`
+Opens a live, interactive REPL (Read-Eval-Print Loop) to act as your pair-programmer.
+*   **Context Aware:** Loads your personal SQLite memory (past PR stories and AI Studio chats) automatically.
+*   **Hybrid Escaltion:** Evaluates locally via Ollama. Type `y` to seamlessly escalate a prompt to Google Gemini for expert cloud resolution.
+*   **Real-Time Memory:** Upon typing `exit`, the chat transcript is automatically saved to your Google Drive as a Markdown file and instantly embedded back into SQLite memory.
 ```bash
-# Find duplicate clusters at 70% similarity threshold
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar duplicates -t 0.70 -r apache/logging-log4j2
+issue-ai chat 1666
 ```
 
-### Outputs
-*   Writes vectors to the `embeddings` database table under the repository namespace.
-*   Groups duplicates into clusters based on a graph Connected Components BFS algorithm.
-
----
-
-## 5. `search`
-Performs an offline semantic vector lookup on your backlog. It vectors your search query and returns issues that conceptually match, even if they use completely different terminology [1].
-
-### Parameters
-*   `[0]` (Positional) : The plain-text search query (wrap in quotes if it contains spaces).
-
-### Options
-*   `-g`, `--global` : Run a global search across all repositories stored in the database [1].
-*   `-m`, `--model` : The Ollama embedding model to use (Default: `all-minilm`).
-*   `-n`, `--limit` : The maximum number of search results to return (Default: `5`).
-
-### Usage
+### `guide`
+Generates a structured, step-by-step resolution blueprint for a specific issue using local RAG (Retrieval-Augmented Generation).
+*   `--gemini` : Bypass the local model and route immediately to the Gemini API.
 ```bash
-# Search across all 14+ open-source databases in SQLite at once!
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar search "deadlock in Kafka appender" --global
+issue-ai guide 1666
+```
+
+### `triage`
+Executes an automated triage audit on a specific issue.
+*   Outputs V1 severity, local AI severity, semantic duplicate overlaps, JIRA-bridge dependencies, and immediate recommended actions.
+```bash
+issue-ai triage 4088
 ```
 
 ---
 
-## 6. `prs`
-Analyzes pull requests stored in `prs` table for maintenance metrics.
+## 📊 Analytics & Reporting
 
-### Detection Categories
-*   **Stale PRs:** No update activity for over 30 days.
-*   **Reviews Needed:** PR has 0 comments (used as a proxy for no active reviews).
-*   **Critical Fixes:** PR matches issue numbers referencing an issue flagged as `Critical` by the severity analyzer.
-
-### Usage
+### `search`
+Performs an offline semantic vector lookup on your backlog.
+*   `-g`, `--global` : Run the search across all synced repositories simultaneously.
 ```bash
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar prs -r apache/logging-log4j2
+issue-ai search "deadlock in network appender" --global
 ```
 
----
-
-## 7. `triage`
-Executes a consolidated, automated triage audit on a specific issue or pull request, returning a complete action log indicating critical warnings, duplicates, and stale statuses.
-
-### Parameters
-*   `[0]` (Positional) : The issue or PR number to triage.
-
-### Usage
+### `report`
+Compiles SQLite data into a unified Weekly Health Report in Markdown format.
+*   `--me` : Generates a highly personalized roadmap tailored to your Developer Expertise Vector, including Regression Guard alerts and your specific stale PRs.
 ```bash
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar triage 4088 -r apache/logging-log4j2
+issue-ai report --me
+issue-ai report -r apache/kafka
 ```
 
-### Outputs
-Prints a terminal dashboard containing:
-*   Author metadata with organization member status badges (`[Member]`).
-*   V1 score vs. local AI severity assessment.
-*   Semantic duplicates matching above a 70% threshold.
-*   Any resolved ecosystem JIRA-key overlaps [1.1.1].
-*   Immediate recommended actions.
-
----
-
-## 8. `report`
-Compiles all SQLite databases into a unified, highly actionable, timestamped **Weekly Health Report** in Markdown format.
-
-### Usage
+### `trend`
+Tracks project health metrics over time.
+*   `-s`, `--save` : Save today's metrics as a new historical snapshot.
 ```bash
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar report -r apache/logging-log4j2
+issue-ai trend --save
 ```
 
-### Outputs
-Generates a customized file `reports/<repo_name>-issues-report-YYYYMMDD-HHmmss.md` detailing:
-*   Summary metrics (Open, Critical, Stale, Hidden, and Duplicates).
-*   Critical and Hidden Critical issues with author and member badges.
-*   **Ecosystem Connections:** Lists mutual cross-project JIRA bridge overlaps, inbound downstream links, and outbound upstream dependencies [1.1.1, 2].
-
----
-
-## 9. `trend`
-Tracks and displays project health metrics across multiple snapshot intervals over time.
-
-### Options
-*   `-s`, `--save` : Gathers current metrics and saves them as a new snapshot in the database.
-
-### Usage
+### `analyze`
+Performs batch AI Severity Analysis on all open issues using local Ollama.
 ```bash
-# Save today's snapshot for the specific repository
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend --save -r apache/logging-log4j2
-
-# Display the trend dashboard
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend -r apache/logging-log4j2
+issue-ai analyze
 ```
 
-### Outputs
-*   Saves a record to the `snapshots` database table under the specific repository namespace.
-*   Outputs a chronological matrix in the terminal showing the change direction of issues and PRs.
+### `duplicates`
+Identifies duplicate issue clusters using local vector embeddings (Cosine Similarity).
+```bash
+issue-ai duplicates -t 0.85
+```
+
+### `hidden-critical`
+Cross-references raw metadata against AI evaluations to detect underestimated security threats.
+```bash
+issue-ai hidden-critical
+```

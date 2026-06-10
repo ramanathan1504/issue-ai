@@ -3,7 +3,7 @@
 # Exit immediately if any compilation or execution command fails
 set -e
 
-# 1. Manually export standard macOS and Homebrew paths (Bypassing interactive .zshrc)
+# 1. Manually export standard macOS and Homebrew paths
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 # 2. Dynamically locate and export JAVA_HOME on macOS
@@ -11,7 +11,7 @@ if [ -z "$JAVA_HOME" ] && [ -x /usr/libexec/java_home ]; then
     export JAVA_HOME=$(/usr/libexec/java_home)
 fi
 
-# 3. Retrieve GITHUB_TOKEN securely from macOS Keychain if not already exported in the env
+# 3. Retrieve GITHUB_TOKEN securely from macOS Keychain
 if [ -z "$GITHUB_TOKEN" ]; then
   KEYCHAIN_TOKEN="$(security find-generic-password -s github_token -w 2>/dev/null || true)"
   if [ -n "$KEYCHAIN_TOKEN" ]; then
@@ -21,8 +21,8 @@ fi
 
 # Double check if we successfully retrieved a token
 if [ -z "$GITHUB_TOKEN" ]; then
-  System.err.println "Error: GITHUB_TOKEN is not set and was not found in macOS Keychain."
-  System.err.println "Please run: security add-generic-password -a \"\$USER\" -s github_token -w \"<YOUR_TOKEN>\" -U"
+  echo "Error: GITHUB_TOKEN is not set and was not found in macOS Keychain." >&2
+  echo "Please run: security add-generic-password -a \"\$USER\" -s github_token -w \"<YOUR_TOKEN>\" -U" >&2
   exit 1
 fi
 
@@ -38,32 +38,35 @@ echo ""
 echo "=================================================="
 echo "Phase 2: Syncing Backlog Registries (SQLite)"
 echo "=================================================="
-# Sync all active, enabled repositories in your SQLite registry
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar sync --all
+# Sync all active, enabled repositories
+issue-ai sync --all
+
+echo ""
+echo "=================================================="
+echo "Phase 2b: Syncing Personal Profile & Google Drive"
+echo "=================================================="
+# Auto-ingest new Google Drive chats and merged PRs
+issue-ai sync --me
 
 echo ""
 echo "=================================================="
 echo "Phase 3: Running AI Severity Assessments"
 echo "=================================================="
-# Predict priorities using the local Qwen model on Log4j (or others)
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar analyze -m qwen2.5:0.5b -r apache/logging-log4j2
+issue-ai analyze -r apache/logging-log4j2
 
 echo ""
 echo "=================================================="
 echo "Phase 4: Regenerating Semantic Vector Index"
 echo "=================================================="
-# Rebuild duplicate vector mappings
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar duplicates -t 0.70 -r apache/logging-log4j2
+issue-ai duplicates -t 0.85 -r apache/logging-log4j2
 
 echo ""
 echo "=================================================="
 echo "Phase 5: Generating Master Weekly Health Report"
 echo "=================================================="
-# Compile the updated Markdown report with JIRA and ecosystem links
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar report -r apache/logging-log4j2
-
-# Save today's historical snapshot
-java -jar target/issue-ai-0.1.0-SNAPSHOT.jar trend --save -r apache/logging-log4j2
+issue-ai report -r apache/logging-log4j2
+issue-ai report --me -r apache/logging-log4j2
+issue-ai trend --save -r apache/logging-log4j2
 
 echo ""
 echo "=================================================="
@@ -81,14 +84,12 @@ ORDER BY i.number ASC;")
 
 STATE_FILE="data/last_hidden_criticals.txt"
 
-# B. Read previous state if exists
 if [ -f "$STATE_FILE" ]; then
     OLD_HIDDEN=$(cat "$STATE_FILE")
 else
     OLD_HIDDEN=""
 fi
 
-# C. Detect if any NEW issues have arrived
 NEW_ISSUES=""
 for num in $CURRENT_HIDDEN; do
     if [[ ! " $OLD_HIDDEN " =~ " $num " ]]; then
@@ -96,10 +97,8 @@ for num in $CURRENT_HIDDEN; do
     fi
 done
 
-# D. Save the current state for the next hour's run
 echo "$CURRENT_HIDDEN" > "$STATE_FILE"
 
-# E. Only trigger macOS notification if we found actually NEW hidden criticals
 if [ ! -z "$NEW_ISSUES" ]; then
     NEW_ISSUES_TRIMMED=$(echo "$NEW_ISSUES" | xargs)
     osascript -e "display notification \"New Hidden Critical Issues found in Log4j: $NEW_ISSUES_TRIMMED\" with title \"Issue-AI Triage Alert\""
