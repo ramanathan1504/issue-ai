@@ -15,7 +15,14 @@ echo "========================================"
 echo "🚀 Starting Automated Release for v$VERSION"
 echo "========================================"
 
-echo "1. Compiling fresh project..."
+echo "1. Bumping version in pom.xml to $VERSION..."
+# This Maven command automatically updates the <version> tag in your pom.xml
+mvn versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
+
+echo "1.5 Formatting code with Spotless..."
+mvn spotless:apply
+
+echo "2. Compiling fresh project..."
 mvn clean package -DskipTests
 
 # The Shade plugin outputs the fat JAR directly to this name
@@ -26,14 +33,21 @@ if [ ! -f "$RELEASE_JAR" ]; then
     exit 1
 fi
 
-echo "2. Uploading to GitHub Releases..."
+echo "3. Committing pom.xml version bump to GitHub..."
+git add pom.xml
+# Note: || true prevents failing if there are no changes (e.g. running the same version twice)
+git commit -m "Bump project version to v$VERSION" || true
+git push origin main
+
+echo "4. Uploading to GitHub Releases..."
+# Automatically creates the release and uploads the JAR
 gh release create "v$VERSION" "$RELEASE_JAR" --title "Issue-AI v$VERSION" --generate-notes
 
-echo "3. Calculating SHA-256 Hash..."
+echo "5. Calculating SHA-256 Hash..."
 JAR_SHA=$(shasum -a 256 "$RELEASE_JAR" | awk '{print $1}')
 echo "   ↳ SHA256: $JAR_SHA"
 
-echo "4. Updating Homebrew Tap..."
+echo "6. Updating Homebrew Tap..."
 # Clone the tap into a temporary hidden folder
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
@@ -47,7 +61,7 @@ sed -i '' -e "s|sha256 \".*\"|sha256 \"${JAR_SHA}\"|" issue-ai.rb
 
 # Commit and push the updated formula back to GitHub
 git add issue-ai.rb
-git commit -m "Bump version to v$VERSION"
+git commit -m "Bump Homebrew version to v$VERSION"
 git push origin main
 
 # Cleanup

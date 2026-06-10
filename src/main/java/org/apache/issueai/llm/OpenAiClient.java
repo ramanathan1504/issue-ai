@@ -23,16 +23,13 @@ public class OpenAiClient {
     public OpenAiClient(String apiKey, String model) {
         this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() ? "gpt-4o" : model;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+        this.httpClient =
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
     public String generateText(String prompt) throws IOException, InterruptedException {
         Map<String, Object> message = Map.of("role", "user", "content", prompt);
-        Map<String, Object> requestBody = Map.of(
-                "model", model,
-                "messages", List.of(message),
-                "temperature", 0.7
-        );
+        Map<String, Object> requestBody = Map.of("model", model, "messages", List.of(message), "temperature", 0.7);
 
         String jsonPayload = MAPPER.writeValueAsString(requestBody);
         HttpRequest request = HttpRequest.newBuilder()

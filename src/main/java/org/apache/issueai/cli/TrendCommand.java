@@ -16,28 +16,24 @@ import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.model.TrendSnapshot;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-@Command(
-        name = "trend",
-        description = "Track and visualize weekly project health trends"
-)
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
+@Command(name = "trend", description = "Track and visualize weekly project health trends")
 public class TrendCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(TrendCommand.class);
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Option(
             names = {"-s", "--save"},
-            description = "Compute and save a new historical trend snapshot for today"
-    )
+            description = "Compute and save a new historical trend snapshot for today")
     private boolean save;
 
     @Override
@@ -46,7 +42,8 @@ public class TrendCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -67,25 +64,15 @@ public class TrendCommand implements Callable<Integer> {
         LOGGER.info("Project Health Trends Dashboard for '{}'", repository);
         LOGGER.info("=====================================================");
 
-        LOGGER.info(
-                String.format(
-                        "%-12s | %-15s | %-13s | %-18s | %-18s",
-                        "Date",
-                        "Critical Issues",
-                        "High Priority",
-                        "Stale PRs",
-                        "Duplicate Clusters"));
+        LOGGER.info(String.format(
+                "%-12s | %-15s | %-13s | %-18s | %-18s",
+                "Date", "Critical Issues", "High Priority", "Stale PRs", "Duplicate Clusters"));
         LOGGER.info("-------------+-----------------+---------------+--------------------+-------------------");
 
         for (TrendSnapshot s : snapshots) {
-            LOGGER.info(
-                    String.format(
-                            "%-12s | %-15d | %-13d | %-18d | %-18d",
-                            s.date(),
-                            s.criticalIssues(),
-                            s.highPriority(),
-                            s.stalePrs(),
-                            s.duplicateClusters()));
+            LOGGER.info(String.format(
+                    "%-12s | %-15d | %-13d | %-18d | %-18d",
+                    s.date(), s.criticalIssues(), s.highPriority(), s.stalePrs(), s.duplicateClusters()));
         }
 
         if (snapshots.size() > 1) {
@@ -125,7 +112,8 @@ public class TrendCommand implements Callable<Integer> {
         List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
 
         if (issues.isEmpty()) {
-            LOGGER.error("No local issues found to save today's snapshot for '{}'. Please run 'sync' first.", repository);
+            LOGGER.error(
+                    "No local issues found to save today's snapshot for '{}'. Please run 'sync' first.", repository);
             return;
         }
 
@@ -154,19 +142,18 @@ public class TrendCommand implements Callable<Integer> {
         int dupCount = calculateDuplicateGroupsCount(issues, embeddings);
 
         String today = LocalDate.now().toString();
-        TrendSnapshot snapshot = new TrendSnapshot(
-                today,
-                (int) criticalCount,
-                (int) highCount,
-                (int) staleCount,
-                dupCount
-        );
+        TrendSnapshot snapshot =
+                new TrendSnapshot(today, (int) criticalCount, (int) highCount, (int) staleCount, dupCount);
 
         // Save snapshot specifically for this repository
         SqliteStorage.saveTrendSnapshot(repository, snapshot);
         LOGGER.info("  ↳ Saved snapshot for today ({}) on '{}':", today, repository);
-        LOGGER.info("    Critical: {}, High: {}, Stale PRs: {}, Duplicates: {}",
-                criticalCount, highCount, staleCount, dupCount);
+        LOGGER.info(
+                "    Critical: {}, High: {}, Stale PRs: {}, Duplicates: {}",
+                criticalCount,
+                highCount,
+                staleCount,
+                dupCount);
     }
 
     private int calculateDuplicateGroupsCount(List<Issue> issues, List<IssueEmbedding> embeddings) {

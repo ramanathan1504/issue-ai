@@ -7,8 +7,8 @@
         </Console>
 
         <!-- 2. Rolling File Appender for complete background daemon diagnostics -->
-        <RollingFile name="RollingFile" fileName="logs/issue-ai.log"
-                     filePattern="logs/archive/issue-ai-%d{yyyy-MM-dd}-%i.log.gz">
+        <RollingFile name="File" fileName="${sys:user.home}/.issue-ai/logs/issue-ai.log"
+                     filePattern="${sys:user.home}/.issue-ai/logs/issue-ai-%d{yyyy-MM-dd}-%i.log.gz">
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
             <Policies>
                 <SizeBasedTriggeringPolicy size="10MB" />

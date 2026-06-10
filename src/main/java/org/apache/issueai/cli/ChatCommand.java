@@ -18,7 +18,9 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "chat", description = "Open an interactive REPL chat session with local alignment and multi-cloud escalation")
+@Command(
+        name = "chat",
+        description = "Open an interactive REPL chat session with local alignment and multi-cloud escalation")
 public class ChatCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(ChatCommand.class);
@@ -29,13 +31,19 @@ public class ChatCommand implements Callable<Integer> {
     @Option(names = {"-r", "--repo"})
     private String repository;
 
-    @Option(names = {"--gemini"}, description = "Use Gemini API for cloud escalation (Default)")
+    @Option(
+            names = {"--gemini"},
+            description = "Use Gemini API for cloud escalation (Default)")
     private boolean useGemini;
 
-    @Option(names = {"--openai"}, description = "Use OpenAI API for cloud escalation")
+    @Option(
+            names = {"--openai"},
+            description = "Use OpenAI API for cloud escalation")
     private boolean useOpenAi;
 
-    @Option(names = {"--claude"}, description = "Use Anthropic Claude API for cloud escalation")
+    @Option(
+            names = {"--claude"},
+            description = "Use Anthropic Claude API for cloud escalation")
     private boolean useClaude;
 
     @Override
@@ -44,7 +52,8 @@ public class ChatCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -58,9 +67,19 @@ public class ChatCommand implements Callable<Integer> {
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         List<Issue> prs = SqliteStorage.loadPullRequests(repository);
         Issue target = null;
-        for (Issue i : issues) { if (i.number() == issueNumber) { target = i; break; } }
+        for (Issue i : issues) {
+            if (i.number() == issueNumber) {
+                target = i;
+                break;
+            }
+        }
         if (target == null) {
-            for (Issue p : prs) { if (p.number() == issueNumber) { target = p; break; } }
+            for (Issue p : prs) {
+                if (p.number() == issueNumber) {
+                    target = p;
+                    break;
+                }
+            }
         }
         if (target == null) {
             LOGGER.error("Issue #{} not found in local data for '{}'.", issueNumber, repository);
@@ -71,19 +90,30 @@ public class ChatCommand implements Callable<Integer> {
         List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
         double[] targetVector = null;
         for (IssueEmbedding emb : embeddings) {
-            if (emb.issueNumber() == issueNumber) { targetVector = emb.vector(); break; }
+            if (emb.issueNumber() == issueNumber) {
+                targetVector = emb.vector();
+                break;
+            }
         }
 
         StringBuilder memoryContext = new StringBuilder();
         if (targetVector != null) {
             for (PrMemory prMem : SqliteStorage.loadAllPersonalPrMemories()) {
                 if (prMem.vector() != null && cosineSimilarity(targetVector, prMem.vector()) >= 0.35) {
-                    memoryContext.append("PR #").append(prMem.prNumber()).append(" Story:\n").append(prMem.generatedStory()).append("\n");
+                    memoryContext
+                            .append("PR #")
+                            .append(prMem.prNumber())
+                            .append(" Story:\n")
+                            .append(prMem.generatedStory())
+                            .append("\n");
                 }
             }
             for (ChatMemory chatMem : SqliteStorage.loadAllPersonalChatMemories()) {
                 if (chatMem.vector() != null && cosineSimilarity(targetVector, chatMem.vector()) >= 0.35) {
-                    memoryContext.append("Past Chat: ").append(chatMem.content()).append("\n");
+                    memoryContext
+                            .append("Past Chat: ")
+                            .append(chatMem.content())
+                            .append("\n");
                 }
             }
         }
@@ -103,20 +133,29 @@ public class ChatCommand implements Callable<Integer> {
 
         if (useOpenAi) {
             String key = retrieveKey("OPENAI_API_KEY", "openai_api_key");
-            if (key == null) { LOGGER.error("OpenAI API Key missing."); return 1; }
+            if (key == null) {
+                LOGGER.error("OpenAI API Key missing.");
+                return 1;
+            }
             String model = SqliteStorage.loadConfig("openai.model");
             openAiClient = new OpenAiClient(key, model == null ? "gpt-4o" : model);
             cloudProviderName = "OpenAI GPT";
         } else if (useClaude) {
             String key = retrieveKey("ANTHROPIC_API_KEY", "anthropic_api_key");
-            if (key == null) { LOGGER.error("Anthropic API Key missing."); return 1; }
+            if (key == null) {
+                LOGGER.error("Anthropic API Key missing.");
+                return 1;
+            }
             String model = SqliteStorage.loadConfig("claude.model");
             claudeClient = new ClaudeClient(key, model == null ? "claude-3-5-sonnet-20240620" : model);
             cloudProviderName = "Anthropic Claude";
         } else {
             // Default to Gemini
             String key = retrieveKey("GEMINI_API_KEY", "gemini_api_key");
-            if (key == null) { LOGGER.error("Gemini API Key missing."); return 1; }
+            if (key == null) {
+                LOGGER.error("Gemini API Key missing.");
+                return 1;
+            }
             String model = SqliteStorage.loadConfig("gemini.model");
             geminiClient = new GeminiClient(key, model == null ? "gemini-1.5-flash-latest" : model);
         }
@@ -148,19 +187,21 @@ public class ChatCommand implements Callable<Integer> {
             if (userInput.equalsIgnoreCase("y") && !lastUserPrompt.isEmpty()) {
                 LOGGER.info("Bridging request to {} (Cloud Agent)...", cloudProviderName);
 
-                String cloudPrompt = String.format("""
+                String cloudPrompt = String.format(
+                        """
                         You are an expert maintainer for the '%s' open-source repository.
                         We are actively resolving Issue #%d: %s
                         Body: %s
-                        
+
                         --- CONVERSATION HISTORY ---
                         %s
-                        
+
                         --- NEW PROMPT ---
                         %s
-                        
+
                         Provide a highly technical, expert code resolution for the new prompt.
-                        """, issueNumber, target.title(), target.body(), conversationHistory.toString(), lastUserPrompt);
+                        """,
+                        issueNumber, target.title(), target.body(), conversationHistory.toString(), lastUserPrompt);
 
                 try {
                     String cloudOutput = "";
@@ -170,19 +211,22 @@ public class ChatCommand implements Callable<Integer> {
 
                     LOGGER.info("Received Cloud Response. Aligning with your local memory profile...");
 
-                    String alignmentPrompt = String.format("""
+                    String alignmentPrompt = String.format(
+                            """
                             You are a personal developer copilot.
                             An online expert AI provided this code solution:
                             %s
-                            
+
                             Here is my personal development memory (my past PRs and edits):
                             %s
-                            
+
                             Compare the expert solution with my memory. Output a final response that includes:
                             1. The expert solution.
-                            2. ALIGNMENT CHECK: Does this solution match my past coding patterns? 
+                            2. ALIGNMENT CHECK: Does this solution match my past coding patterns?
                             3. Which specific local files from my past PRs should I apply this to?
-                            """, cloudOutput, memoryContext.toString().isEmpty() ? "(No local memory found)" : memoryContext.toString());
+                            """,
+                            cloudOutput,
+                            memoryContext.toString().isEmpty() ? "(No local memory found)" : memoryContext.toString());
 
                     String finalAlignedOutput = localClient.generateText(alignmentPrompt);
 
@@ -190,7 +234,10 @@ public class ChatCommand implements Callable<Integer> {
                     LOGGER.info("\n{}\n", finalAlignedOutput);
                     LOGGER.info("=========================================================\n");
 
-                    conversationHistory.append("User escalated to Cloud.\nAI (Hybrid): ").append(finalAlignedOutput).append("\n\n");
+                    conversationHistory
+                            .append("User escalated to Cloud.\nAI (Hybrid): ")
+                            .append(finalAlignedOutput)
+                            .append("\n\n");
 
                 } catch (Exception e) {
                     LOGGER.error("Cloud escalation failed: {}", e.getMessage());
@@ -203,19 +250,21 @@ public class ChatCommand implements Callable<Integer> {
                 conversationHistory.append("User: ").append(userInput).append("\n");
 
                 LOGGER.info("Thinking locally...");
-                String localPrompt = String.format("""
+                String localPrompt = String.format(
+                        """
                         You are an expert maintainer for the '%s' acting as a live coding pair-programmer.
                         We are actively resolving Issue #%d: %s
-                        
+
                         --- RELEVANT PAST EXPERIENCES ---
                         %s
-                        
+
                         --- CONVERSATION HISTORY ---
                         %s
-                        
+
                         Please respond directly to the User's last message. Provide code snippets if requested.
                         """,
-                        issueNumber, target.title(),
+                        issueNumber,
+                        target.title(),
                         memoryContext.toString().isEmpty() ? "(None)" : memoryContext.toString(),
                         conversationHistory.toString());
 
@@ -226,7 +275,10 @@ public class ChatCommand implements Callable<Integer> {
                     LOGGER.info("\n{}\n", localOutput);
                     LOGGER.info("================================================\n");
 
-                    conversationHistory.append("AI (Local): ").append(localOutput).append("\n\n");
+                    conversationHistory
+                            .append("AI (Local): ")
+                            .append(localOutput)
+                            .append("\n\n");
 
                 } catch (Exception e) {
                     LOGGER.error("Local generation failed: {}", e.getMessage());
@@ -242,15 +294,16 @@ public class ChatCommand implements Callable<Integer> {
         if (key != null && !key.trim().isEmpty()) return key;
 
         try {
-            Process process = Runtime.getRuntime().exec(new String[]{
-                    "sh", "-c", "security find-generic-password -s " + keychainName + " -w 2>/dev/null || true"
+            Process process = Runtime.getRuntime().exec(new String[] {
+                "sh", "-c", "security find-generic-password -s " + keychainName + " -w 2>/dev/null || true"
             });
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(process.getInputStream()))) {
+            try (java.io.BufferedReader reader =
+                    new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
                 String line = reader.readLine();
                 if (line != null && !line.trim().isEmpty()) return line.trim();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return null;
     }
 
@@ -282,13 +335,17 @@ public class ChatCommand implements Callable<Integer> {
                 return;
             }
 
-            String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            String timestamp = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
             String fileName = String.format("Issue_%d_Resolution_Session_%s.md", issueNumber, timestamp);
             java.nio.file.Path filePath = dirPath.resolve(fileName);
             String absolutePath = filePath.toAbsolutePath().toString();
 
             StringBuilder fileContent = new StringBuilder();
-            fileContent.append("# Resolution Session: Issue #").append(issueNumber).append("\n");
+            fileContent
+                    .append("# Resolution Session: Issue #")
+                    .append(issueNumber)
+                    .append("\n");
             fileContent.append("**Title:** ").append(target.title()).append("\n");
             fileContent.append("**Date:** ").append(java.time.LocalDate.now()).append("\n\n");
             fileContent.append("## Conversation Transcript\n\n");
@@ -298,7 +355,8 @@ public class ChatCommand implements Callable<Integer> {
 
             // 1. Save physical backup to Google Drive
             java.nio.file.Files.writeString(filePath, finalContent, java.nio.charset.StandardCharsets.UTF_8);
-            long lastModified = java.nio.file.Files.getLastModifiedTime(filePath).toMillis();
+            long lastModified =
+                    java.nio.file.Files.getLastModifiedTime(filePath).toMillis();
             LOGGER.info("✔ Chat history successfully saved to Google Drive: {}", absolutePath);
 
             // 2. Real-Time Intelligence: Instantly Vectorize and Index into SQLite

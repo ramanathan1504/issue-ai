@@ -12,35 +12,30 @@ import org.apache.issueai.llm.OllamaClient;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
-@Command(
-        name = "duplicates",
-        description = "Identify potential duplicate issues using local vector embeddings"
-)
+@Command(name = "duplicates", description = "Identify potential duplicate issues using local vector embeddings")
 public class DuplicatesCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(DuplicatesCommand.class);
+
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Option(
             names = {"-m", "--model"},
-            description = "Ollama embedding model to use"
-    )
+            description = "Ollama embedding model to use")
     private String modelName;
 
     @Option(
             names = {"-t", "--threshold"},
             description = "Cosine similarity threshold (0.0 to 1.0)",
-            defaultValue = "0.80"
-    )
+            defaultValue = "0.80")
     private double threshold;
 
     @Override
@@ -49,7 +44,8 @@ public class DuplicatesCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -90,7 +86,8 @@ public class DuplicatesCommand implements Callable<Integer> {
                     vectorMap.put(issue.number(), vector);
                     cacheUpdated = true;
                 } catch (IOException | InterruptedException e) {
-                    LOGGER.error("  ↳ [Error] Failed to generate embedding for #{}: {}", issue.number(), e.getMessage());
+                    LOGGER.error(
+                            "  ↳ [Error] Failed to generate embedding for #{}: {}", issue.number(), e.getMessage());
                     return 1;
                 }
             }
@@ -153,7 +150,7 @@ public class DuplicatesCommand implements Callable<Integer> {
             }
         }
 
-       LOGGER.info("\nDuplicate Issue Clusters Report");
+        LOGGER.info("\nDuplicate Issue Clusters Report");
         LOGGER.info("===============================\n");
 
         if (clusters.isEmpty()) {
@@ -170,7 +167,9 @@ public class DuplicatesCommand implements Callable<Integer> {
                 double[] vecA = vectorMap.get(cluster.get(0).number());
                 double[] vecB = vectorMap.get(cluster.get(1).number());
                 if (vecA != null && vecB != null) {
-                    LOGGER.info("  ↳ Representative Pair Similarity: {}", String.format("%.2f", cosineSimilarity(vecA, vecB)));
+                    LOGGER.info(
+                            "  ↳ Representative Pair Similarity: {}",
+                            String.format("%.2f", cosineSimilarity(vecA, vecB)));
                 }
                 LOGGER.info("");
             }

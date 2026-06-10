@@ -8,23 +8,19 @@ import org.apache.issueai.analyzer.SeverityAnalyzer;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.Label;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-@Command(
-        name = "critical",
-        description = "Find critical issues using local data"
-)
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+
+@Command(name = "critical", description = "Find critical issues using local data")
 public class CriticalCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(CriticalCommand.class);
 
-
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Override
@@ -33,7 +29,8 @@ public class CriticalCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -52,9 +49,11 @@ public class CriticalCommand implements Callable<Integer> {
                 .sorted((a, b) -> Integer.compare(b.score(), a.score()))
                 .toList();
 
-        long critical = analyses.stream().filter(a -> a.severity() == Severity.CRITICAL).count();
+        long critical =
+                analyses.stream().filter(a -> a.severity() == Severity.CRITICAL).count();
         long high = analyses.stream().filter(a -> a.severity() == Severity.HIGH).count();
-        long medium = analyses.stream().filter(a -> a.severity() == Severity.MEDIUM).count();
+        long medium =
+                analyses.stream().filter(a -> a.severity() == Severity.MEDIUM).count();
         long low = analyses.stream().filter(a -> a.severity() == Severity.LOW).count();
 
         LOGGER.info("Repository: {} (Offline Mode)", repository);
@@ -68,25 +67,17 @@ public class CriticalCommand implements Callable<Integer> {
         LOGGER.info("");
         LOGGER.info("CRITICAL");
         LOGGER.info("========");
-        analyses.stream()
-                .filter(a -> a.severity() == Severity.CRITICAL)
-                .forEach(this::printIssue);
+        analyses.stream().filter(a -> a.severity() == Severity.CRITICAL).forEach(this::printIssue);
 
         LOGGER.info("");
         LOGGER.info("HIGH");
         LOGGER.info("====");
-        analyses.stream()
-                .filter(a -> a.severity() == Severity.HIGH)
-                .limit(10)
-                .forEach(this::printIssue);
+        analyses.stream().filter(a -> a.severity() == Severity.HIGH).limit(10).forEach(this::printIssue);
 
         LOGGER.info("");
         LOGGER.info("MEDIUM");
         LOGGER.info("====");
-        analyses.stream()
-                .filter(a -> a.severity() == Severity.MEDIUM)
-                .limit(10)
-                .forEach(this::printIssue);
+        analyses.stream().filter(a -> a.severity() == Severity.MEDIUM).limit(10).forEach(this::printIssue);
 
         return 0;
     }
@@ -94,10 +85,7 @@ public class CriticalCommand implements Callable<Integer> {
     private void printIssue(IssueAnalysis a) {
         String labels = a.issue().labels() == null
                 ? "[]"
-                : a.issue().labels().stream()
-                .map(Label::name)
-                .toList()
-                .toString();
+                : a.issue().labels().stream().map(Label::name).toList().toString();
 
         LOGGER.info(
                 "#{} Score={} Labels={} [{}] {}",

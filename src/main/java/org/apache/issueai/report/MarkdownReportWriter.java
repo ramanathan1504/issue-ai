@@ -1,5 +1,6 @@
 package org.apache.issueai.report;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,8 +16,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.stream.Collectors;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.issueai.analyzer.IssueAnalysis;
 import org.apache.issueai.analyzer.Severity;
 import org.apache.issueai.analyzer.SeverityAnalyzer;
@@ -29,8 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class MarkdownReportWriter implements ReportWriter {
-    private static final Logger LOGGER =
-            LogManager.getLogger(MarkdownReportWriter.class);
+    private static final Logger LOGGER = LogManager.getLogger(MarkdownReportWriter.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Override
@@ -64,11 +62,7 @@ public class MarkdownReportWriter implements ReportWriter {
 
                     stalePrLines.add(String.format(
                             "#%d - %s (Author: %s%s, %d days inactive)",
-                            pr.number(),
-                            pr.title(),
-                            authorName,
-                            orgStatus,
-                            daysSinceUpdate));
+                            pr.number(), pr.title(), authorName, orgStatus, daysSinceUpdate));
                 }
             } catch (Exception ignored) {
                 // Ignore parsing errors
@@ -76,8 +70,8 @@ public class MarkdownReportWriter implements ReportWriter {
         }
 
         // 2. Map AI results for fast hidden-critical lookup
-        Map<Long, AiAnalysisResult> aiMap = aiResults.stream()
-                .collect(Collectors.toMap(AiAnalysisResult::issueNumber, result -> result));
+        Map<Long, AiAnalysisResult> aiMap =
+                aiResults.stream().collect(Collectors.toMap(AiAnalysisResult::issueNumber, result -> result));
 
         List<Issue> hiddenCriticals = new ArrayList<>();
         for (Issue issue : issues) {
@@ -117,7 +111,9 @@ public class MarkdownReportWriter implements ReportWriter {
         md.append("- Open PRs: ").append(prs.size()).append("\n");
         md.append("- Critical Issues Count: ").append(criticalAnalyses.size()).append("\n");
         md.append("- Hidden Critical Count: ").append(hiddenCriticals.size()).append("\n");
-        md.append("- Duplicate Clusters Count: ").append(duplicateClusters.size()).append("\n");
+        md.append("- Duplicate Clusters Count: ")
+                .append(duplicateClusters.size())
+                .append("\n");
         md.append("- Stale PRs Count: ").append(stalePrLines.size()).append("\n\n");
 
         md.append("## Critical Issues\n");
@@ -130,11 +126,7 @@ public class MarkdownReportWriter implements ReportWriter {
                 String orgStatus = a.issue().isOrgMember() ? " [Member]" : "";
                 md.append(String.format(
                         "%d. #%d - %s (Author: %s%s)%n",
-                        i++,
-                        a.issue().number(),
-                        a.issue().title(),
-                        authorName,
-                        orgStatus));
+                        i++, a.issue().number(), a.issue().title(), authorName, orgStatus));
             }
         }
         md.append("\n");
@@ -148,12 +140,7 @@ public class MarkdownReportWriter implements ReportWriter {
                 String authorName = issue.user() != null ? issue.user().login() : "unknown";
                 String orgStatus = issue.isOrgMember() ? " [Member]" : "";
                 md.append(String.format(
-                        "%d. #%d - %s (Author: %s%s)%n",
-                        i++,
-                        issue.number(),
-                        issue.title(),
-                        authorName,
-                        orgStatus));
+                        "%d. #%d - %s (Author: %s%s)%n", i++, issue.number(), issue.title(), authorName, orgStatus));
             }
         }
         md.append("\n");
@@ -162,12 +149,12 @@ public class MarkdownReportWriter implements ReportWriter {
         if (duplicateClusters.isEmpty()) {
             md.append("No duplicate groups detected.\n");
         } else {
-            md.append(duplicateClusters.size()).append(" potential duplicate groups detected using semantic indexing:\n");
+            md.append(duplicateClusters.size())
+                    .append(" potential duplicate groups detected using semantic indexing:\n");
             for (int k = 0; k < duplicateClusters.size(); k++) {
                 List<Issue> cluster = duplicateClusters.get(k);
-                String issueNumbersStr = cluster.stream()
-                        .map(issue -> "#" + issue.number())
-                        .collect(Collectors.joining(", "));
+                String issueNumbersStr =
+                        cluster.stream().map(issue -> "#" + issue.number()).collect(Collectors.joining(", "));
                 md.append(String.format("- **Group %d:** %s%n", k + 1, issueNumbersStr));
             }
         }
@@ -184,11 +171,7 @@ public class MarkdownReportWriter implements ReportWriter {
             for (org.apache.issueai.model.JiraBridgeLink bridge : jiraBridges) {
                 md.append(String.format(
                         "- Our Issue **#%d** matches **%s#%d** via JIRA Key **%s**%n",
-                        bridge.localNumber(),
-                        bridge.externalRepo(),
-                        bridge.externalNumber(),
-                        bridge.jiraKey()
-                ));
+                        bridge.localNumber(), bridge.externalRepo(), bridge.externalNumber(), bridge.jiraKey()));
             }
             md.append("\n");
         }
@@ -337,11 +320,8 @@ public class MarkdownReportWriter implements ReportWriter {
                 if (username.equalsIgnoreCase(authorName)) {
                     long daysSinceUpdate = ChronoUnit.DAYS.between(Instant.parse(pr.updated_at()), now);
                     if (daysSinceUpdate > 30) {
-                        myStalePrLines.add(String.format(
-                                "#%d - %s (%d days inactive)",
-                                pr.number(),
-                                pr.title(),
-                                daysSinceUpdate));
+                        myStalePrLines.add(
+                                String.format("#%d - %s (%d days inactive)", pr.number(), pr.title(), daysSinceUpdate));
                     }
                 }
             } catch (Exception ignored) {
@@ -371,7 +351,8 @@ public class MarkdownReportWriter implements ReportWriter {
                 // Personal Priority Score = Base Score * (1.0 + Similarity)
                 double personalScore = baseAnalysis.score() * (1.0 + similarity);
 
-                recommendations.add(new PersonalRecommendation(issue, personalScore, similarity, baseAnalysis.severity()));
+                recommendations.add(
+                        new PersonalRecommendation(issue, personalScore, similarity, baseAnalysis.severity()));
             }
         }
 
@@ -394,10 +375,7 @@ public class MarkdownReportWriter implements ReportWriter {
                     if (!simpleName.isEmpty() && textToScan.contains(simpleName)) {
                         footprintAlerts.add(String.format(
                                 "Issue #%d (\"%s\") mentions your file footprint: '%s'",
-                                issue.number(),
-                                issue.title(),
-                                simpleName
-                        ));
+                                issue.number(), issue.title(), simpleName));
                         break; // Only alert once per issue
                     }
                 }
@@ -416,7 +394,8 @@ public class MarkdownReportWriter implements ReportWriter {
         md.append("- Backlog Security Alerts: ").append(footprintAlerts.size()).append("\n\n");
 
         md.append("## My Curated Inbox (Top Recommendations)\n");
-        md.append("The following issues have the highest mathematical fit with your 1-year contribution footprint:\n\n");
+        md.append(
+                "The following issues have the highest mathematical fit with your 1-year contribution footprint:\n\n");
         if (recommendations.isEmpty()) {
             md.append("(none)\n\n");
         } else {
@@ -425,16 +404,10 @@ public class MarkdownReportWriter implements ReportWriter {
                 PersonalRecommendation rec = recommendations.get(i);
                 md.append(String.format(
                         "%d. **#%d - %s**%n",
-                        i + 1,
-                        rec.issue().number(),
-                        rec.issue().title()
-                ));
+                        i + 1, rec.issue().number(), rec.issue().title()));
                 md.append(String.format(
                         "   *   *Personal Priority Score: %.2f (Base Severity: %s, Skillset Match: %.2f)*%n%n",
-                        rec.personalScore(),
-                        rec.baseSeverity(),
-                        rec.similarity()
-                ));
+                        rec.personalScore(), rec.baseSeverity(), rec.similarity()));
             }
         }
 

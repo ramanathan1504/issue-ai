@@ -3,14 +3,11 @@ package org.apache.issueai.cli;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine.Command;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import picocli.CommandLine.Command;
 
-@Command(
-        name = "setup",
-        description = "Interactive wizard to configure local system settings, models, and paths"
-)
+@Command(name = "setup", description = "Interactive wizard to configure local system settings, models, and paths")
 public class SetupCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(SetupCommand.class);
@@ -58,7 +55,9 @@ public class SetupCommand implements Callable<Integer> {
 
         // 3. Configure Embedding Model
         String currentEmbeddingModel = SqliteStorage.loadConfig("ollama.model.embedding");
-        LOGGER.info("Current Vector Embedding Model: [ {} ]", currentEmbeddingModel == null ? "(none)" : currentEmbeddingModel);
+        LOGGER.info(
+                "Current Vector Embedding Model: [ {} ]",
+                currentEmbeddingModel == null ? "(none)" : currentEmbeddingModel);
         LOGGER.info("Enter new Embedding Model (or press Enter to keep current):");
         String inputEmbedding = scanner.nextLine().trim();
         if (!inputEmbedding.isEmpty()) {
@@ -69,7 +68,8 @@ public class SetupCommand implements Callable<Integer> {
 
         // 4. Configure Guidance Model
         String currentGuidanceModel = SqliteStorage.loadConfig("ollama.model.guidance");
-        LOGGER.info("Current Deep Guidance Model: [ {} ]", currentGuidanceModel == null ? "(none)" : currentGuidanceModel);
+        LOGGER.info(
+                "Current Deep Guidance Model: [ {} ]", currentGuidanceModel == null ? "(none)" : currentGuidanceModel);
         LOGGER.info("Enter new Guidance Model (or press Enter to keep current):");
         String inputGuidance = scanner.nextLine().trim();
         if (!inputGuidance.isEmpty()) {
@@ -80,8 +80,11 @@ public class SetupCommand implements Callable<Integer> {
 
         // 5. Configure Cloud Agent (Gemini Model)
         String currentGeminiModel = SqliteStorage.loadConfig("gemini.model");
-        LOGGER.info("Current Cloud Agent Model (Gemini): [ {} ]", currentGeminiModel == null ? "(none)" : currentGeminiModel);
-        LOGGER.info("Enter new Gemini Model (e.g., gemini-1.5-flash-latest, gemini-pro) or press Enter to keep current:");
+        LOGGER.info(
+                "Current Cloud Agent Model (Gemini): [ {} ]",
+                currentGeminiModel == null ? "(none)" : currentGeminiModel);
+        LOGGER.info(
+                "Enter new Gemini Model (e.g., gemini-1.5-flash-latest, gemini-pro) or press Enter to keep current:");
         String inputGemini = scanner.nextLine().trim();
         if (!inputGemini.isEmpty()) {
             SqliteStorage.saveConfig("gemini.model", inputGemini);
@@ -91,7 +94,9 @@ public class SetupCommand implements Callable<Integer> {
 
         // 6. Configure Cloud Agent (OpenAI Model)
         String currentOpenAiModel = SqliteStorage.loadConfig("openai.model");
-        LOGGER.info("Current Cloud Agent Model (OpenAI): [ {} ]", currentOpenAiModel == null ? "(none)" : currentOpenAiModel);
+        LOGGER.info(
+                "Current Cloud Agent Model (OpenAI): [ {} ]",
+                currentOpenAiModel == null ? "(none)" : currentOpenAiModel);
         LOGGER.info("Enter new OpenAI Model (e.g., gpt-4o, gpt-4-turbo) or press Enter to keep current:");
         String inputOpenAi = scanner.nextLine().trim();
         if (!inputOpenAi.isEmpty()) {
@@ -102,7 +107,9 @@ public class SetupCommand implements Callable<Integer> {
 
         // 7. Configure Cloud Agent (Claude Model)
         String currentClaudeModel = SqliteStorage.loadConfig("claude.model");
-        LOGGER.info("Current Cloud Agent Model (Claude): [ {} ]", currentClaudeModel == null ? "(none)" : currentClaudeModel);
+        LOGGER.info(
+                "Current Cloud Agent Model (Claude): [ {} ]",
+                currentClaudeModel == null ? "(none)" : currentClaudeModel);
         LOGGER.info("Enter new Claude Model (e.g., claude-3-5-sonnet-20240620) or press Enter to keep current:");
         String inputClaude = scanner.nextLine().trim();
         if (!inputClaude.isEmpty()) {
@@ -153,7 +160,8 @@ public class SetupCommand implements Callable<Integer> {
                 hasOpenAiKeychain = checkMacKeychain("openai_api_key");
                 hasClaudeKeychain = checkMacKeychain("anthropic_api_key");
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         // Log GitHub Token Status
         if (githubToken != null && !githubToken.trim().isEmpty()) {
@@ -192,7 +200,8 @@ public class SetupCommand implements Callable<Integer> {
             LOGGER.info("  ✔ ANTHROPIC_API_KEY detected securely inside macOS Keychain.");
         } else {
             LOGGER.info("  ℹ NOTE: No ANTHROPIC_API_KEY found (Required if using --claude for Cloud Triage).");
-            LOGGER.info("    Run: security add-generic-password -a \"$USER\" -s anthropic_api_key -w \"<YOUR_KEY>\" -U");
+            LOGGER.info(
+                    "    Run: security add-generic-password -a \"$USER\" -s anthropic_api_key -w \"<YOUR_KEY>\" -U");
         }
 
         LOGGER.info("==================================================");
@@ -203,11 +212,11 @@ public class SetupCommand implements Callable<Integer> {
     }
 
     private boolean checkMacKeychain(String serviceName) throws Exception {
-        Process process = Runtime.getRuntime().exec(new String[]{
-                "sh", "-c", "security find-generic-password -s " + serviceName + " -w 2>/dev/null || true"
+        Process process = Runtime.getRuntime().exec(new String[] {
+            "sh", "-c", "security find-generic-password -s " + serviceName + " -w 2>/dev/null || true"
         });
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                new java.io.InputStreamReader(process.getInputStream()))) {
+        try (java.io.BufferedReader reader =
+                new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
             String line = reader.readLine();
             return line != null && !line.trim().isEmpty();
         }

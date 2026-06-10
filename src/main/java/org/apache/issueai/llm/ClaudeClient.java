@@ -23,16 +23,13 @@ public class ClaudeClient {
     public ClaudeClient(String apiKey, String model) {
         this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() ? "claude-3-5-sonnet-20240620" : model;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+        this.httpClient =
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
     public String generateText(String prompt) throws IOException, InterruptedException {
         Map<String, Object> message = Map.of("role", "user", "content", prompt);
-        Map<String, Object> requestBody = Map.of(
-                "model", model,
-                "max_tokens", 4096,
-                "messages", List.of(message)
-        );
+        Map<String, Object> requestBody = Map.of("model", model, "max_tokens", 4096, "messages", List.of(message));
 
         String jsonPayload = MAPPER.writeValueAsString(requestBody);
         HttpRequest request = HttpRequest.newBuilder()

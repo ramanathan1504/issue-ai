@@ -16,7 +16,10 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-@Command(name = "guide", description = "Generate a personalized resolution blueprint using local memory and interactive Gemini escalation")
+@Command(
+        name = "guide",
+        description =
+                "Generate a personalized resolution blueprint using local memory and interactive Gemini escalation")
 public class GuideCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(GuideCommand.class);
@@ -24,13 +27,19 @@ public class GuideCommand implements Callable<Integer> {
     @Parameters(index = "0", description = "The issue or PR number to analyze")
     private long issueNumber;
 
-    @Option(names = {"-r", "--repo"}, description = "Target repository in 'owner/repo' format (default: current directory's repo)")
+    @Option(
+            names = {"-r", "--repo"},
+            description = "Target repository in 'owner/repo' format (default: current directory's repo)")
     private String repository;
 
-    @Option(names = {"-m", "--model"}, description = "Local Ollama model to use")
+    @Option(
+            names = {"-m", "--model"},
+            description = "Local Ollama model to use")
     private String modelName;
 
-    @Option(names = {"--gemini"}, description = "Bypass local AI and route immediately to Gemini API")
+    @Option(
+            names = {"--gemini"},
+            description = "Bypass local AI and route immediately to Gemini API")
     private boolean forceGemini;
 
     @Override
@@ -39,7 +48,8 @@ public class GuideCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -55,16 +65,23 @@ public class GuideCommand implements Callable<Integer> {
         Issue target = null;
 
         for (Issue i : issues) {
-            if (i.number() == issueNumber) { target = i; break; }
+            if (i.number() == issueNumber) {
+                target = i;
+                break;
+            }
         }
         if (target == null) {
             for (Issue p : prs) {
-                if (p.number() == issueNumber) { target = p; break; }
+                if (p.number() == issueNumber) {
+                    target = p;
+                    break;
+                }
             }
         }
 
         if (target == null) {
-            LOGGER.error("Issue #{} not found in local data for '{}'. Please run 'sync' first.", issueNumber, repository);
+            LOGGER.error(
+                    "Issue #{} not found in local data for '{}'. Please run 'sync' first.", issueNumber, repository);
             return 1;
         }
 
@@ -88,9 +105,18 @@ public class GuideCommand implements Callable<Integer> {
                     double similarity = cosineSimilarity(targetVector, prMem.vector());
                     if (similarity >= 0.35) {
                         matchedCount++;
-                        contextBlock.append("--- REFERENCE DEVELOPMENT NOTE (PR #").append(prMem.prNumber()).append(") ---\n");
-                        contextBlock.append("Files Changed: ").append(prMem.filesChanged()).append("\n");
-                        contextBlock.append("Story:\n").append(prMem.generatedStory()).append("\n\n");
+                        contextBlock
+                                .append("--- REFERENCE DEVELOPMENT NOTE (PR #")
+                                .append(prMem.prNumber())
+                                .append(") ---\n");
+                        contextBlock
+                                .append("Files Changed: ")
+                                .append(prMem.filesChanged())
+                                .append("\n");
+                        contextBlock
+                                .append("Story:\n")
+                                .append(prMem.generatedStory())
+                                .append("\n\n");
                     }
                 }
             }
@@ -100,8 +126,14 @@ public class GuideCommand implements Callable<Integer> {
                     double similarity = cosineSimilarity(targetVector, chatMem.vector());
                     if (similarity >= 0.35) {
                         matchedCount++;
-                        contextBlock.append("--- REFERENCE DISCUSSION NOTE (File: ").append(chatMem.fileName()).append(") ---\n");
-                        contextBlock.append("Content:\n").append(chatMem.content()).append("\n\n");
+                        contextBlock
+                                .append("--- REFERENCE DISCUSSION NOTE (File: ")
+                                .append(chatMem.fileName())
+                                .append(") ---\n");
+                        contextBlock
+                                .append("Content:\n")
+                                .append(chatMem.content())
+                                .append("\n\n");
                     }
                 }
             }
@@ -110,7 +142,7 @@ public class GuideCommand implements Callable<Integer> {
 
         String memorySection = matchedCount > 0
                 ? contextBlock.toString()
-                : "No specific personal past experience found. Provide expert generic "+ repository + "resolution.";
+                : "No specific personal past experience found. Provide expert generic " + repository + "resolution.";
 
         // --- TIER 1: Local Ollama Generation ---
         String localOutput = "";
@@ -123,22 +155,24 @@ public class GuideCommand implements Callable<Integer> {
             }
 
             LOGGER.info("Synthesizing initial blueprint using local model '{}'...", modelName);
-            String localPrompt = String.format("""
+            String localPrompt = String.format(
+                    """
                     You are an expert maintainer.
                     Help the developer write a step-by-step code resolution plan for this new issue.
-                    
+
                     --- REFERENCE MEMORY ---
                     %s
-                    
+
                     --- NEW ISSUE ---
                     Title: %s
                     Body: %s
-                    
+
                     Your output MUST be a structured markdown guide containing:
                     1. ANALYSIS: A concise technical explanation of the root cause.
                     2. HISTORICAL MATCH: How this relates to the past work provided in the reference memory.
                     3. STEP-BY-STEP PLAN: A concrete, file-by-file coding blueprint.
-                    """, memorySection.trim(), target.title(), target.body());
+                    """,
+                    memorySection.trim(), target.title(), target.body());
 
             try {
                 localOutput = guideOllama.generateText(localPrompt);
@@ -170,21 +204,23 @@ public class GuideCommand implements Callable<Integer> {
 
             LOGGER.info("Bridging request to Cloud Agent (Gemini API)...");
 
-            String geminiPrompt = String.format("""
+            String geminiPrompt = String.format(
+                    """
                     You are an expert maintainer.
                     We are resolving Issue #%d: %s
-                    
+
                     --- ORIGINAL CONTEXT & MEMORY ---
                     %s
-                    
+
                     --- LOCAL AI DRAFT RESOLUTION ---
                     %s
-                    
+
                     --- DEVELOPER FEEDBACK / TWEAK ---
                     %s
-                    
+
                     Please provide a final, expert-level Markdown resolution blueprint that incorporates the developer's feedback and improves upon the local draft.
-                    """, issueNumber, target.title(), memorySection.trim(), localOutput, tweak);
+                    """,
+                    issueNumber, target.title(), memorySection.trim(), localOutput, tweak);
 
             try {
                 String geminiModel = SqliteStorage.loadConfig("gemini.model");
@@ -216,15 +252,16 @@ public class GuideCommand implements Callable<Integer> {
         if (key != null && !key.trim().isEmpty()) return key;
 
         try {
-            Process process = Runtime.getRuntime().exec(new String[]{
-                    "sh", "-c", "security find-generic-password -s gemini_api_key -w 2>/dev/null || true"
+            Process process = Runtime.getRuntime().exec(new String[] {
+                "sh", "-c", "security find-generic-password -s gemini_api_key -w 2>/dev/null || true"
             });
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(process.getInputStream()))) {
+            try (java.io.BufferedReader reader =
+                    new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
                 String line = reader.readLine();
                 if (line != null && !line.trim().isEmpty()) return line.trim();
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         return null;
     }
 

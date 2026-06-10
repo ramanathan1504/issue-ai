@@ -17,16 +17,13 @@ public record Issue(
         User user,
         String author_association,
         String html_url // Added to track the source URL
-) {
+        ) {
     public boolean isPullRequest() {
         return pull_request != null;
     }
 
     public boolean hasLabel(String labelName) {
-        return labels != null &&
-                labels.stream()
-                        .anyMatch(label ->
-                                label.name().equalsIgnoreCase(labelName));
+        return labels != null && labels.stream().anyMatch(label -> label.name().equalsIgnoreCase(labelName));
     }
 
     public boolean isOrgMember() {

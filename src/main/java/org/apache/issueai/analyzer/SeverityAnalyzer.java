@@ -47,8 +47,8 @@ public class SeverityAnalyzer {
         return issue != null
                 && issue.labels() != null
                 && issue.labels().stream()
-                .filter(label -> label != null && label.name() != null)
-                .anyMatch(label -> p.matcher(label.name()).find());
+                        .filter(label -> label != null && label.name() != null)
+                        .anyMatch(label -> p.matcher(label.name()).find());
     }
 
     public IssueAnalysis analyze(Issue issue) {
@@ -217,10 +217,9 @@ public class SeverityAnalyzer {
         // Comment scoring
         score += Math.min(issue.comments(), 20);
 
-        Severity severity = score >= 120 ? Severity.CRITICAL
-                : score >= 80 ? Severity.HIGH
-                  : score >= 40 ? Severity.MEDIUM
-                    : Severity.LOW;
+        Severity severity = score >= 120
+                ? Severity.CRITICAL
+                : score >= 80 ? Severity.HIGH : score >= 40 ? Severity.MEDIUM : Severity.LOW;
 
         String formattedReason = reason.toString().trim();
 

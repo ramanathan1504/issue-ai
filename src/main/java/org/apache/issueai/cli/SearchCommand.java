@@ -11,49 +11,39 @@ import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.model.RepoIssue;
 import org.apache.issueai.storage.SqliteStorage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
 
-@Command(
-        name = "search",
-        description = "Search the local issue backlog semantically using vector embeddings"
-)
+@Command(name = "search", description = "Search the local issue backlog semantically using vector embeddings")
 public class SearchCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchCommand.class);
 
-    @Parameters(
-            index = "0",
-            description = "The plain text search query (wrap in quotes if it contains spaces)"
-    )
+    @Parameters(index = "0", description = "The plain text search query (wrap in quotes if it contains spaces)")
     private String query;
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Option(
             names = {"-g", "--global"},
-            description = "Perform a global search across all repositories in the database"
-    )
+            description = "Perform a global search across all repositories in the database")
     private boolean global;
 
     @Option(
             names = {"-m", "--model"},
-            description = "Ollama embedding model to use"
-    )
+            description = "Ollama embedding model to use")
     private String modelName;
 
     @Option(
             names = {"-n", "--limit"},
             description = "Number of top search results to return",
-            defaultValue = "5"
-    )
+            defaultValue = "5")
     private int limit;
 
     @Override
@@ -62,7 +52,8 @@ public class SearchCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -83,7 +74,8 @@ public class SearchCommand implements Callable<Integer> {
             List<RepoIssue> allPrs = SqliteStorage.loadAllPullRequests();
             embeddings = SqliteStorage.loadAllEmbeddings();
 
-            allIssues.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
+            allIssues.forEach(
+                    ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
             allPrs.forEach(ri -> issueMap.put(ri.repository() + "_" + ri.issue().number(), ri.issue()));
         } else {
             List<Issue> issues = SqliteStorage.loadIssues(repository);
@@ -136,7 +128,7 @@ public class SearchCommand implements Callable<Integer> {
                     typeBadge,
                     res.repoName(),
                     res.issue().number(),
-                    String.format("%.2f",res.similarity()));
+                    String.format("%.2f", res.similarity()));
             LOGGER.info("   Title: {}", res.issue().title());
         }
 

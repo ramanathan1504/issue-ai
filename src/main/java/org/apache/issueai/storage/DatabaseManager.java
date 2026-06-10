@@ -2,152 +2,173 @@ package org.apache.issueai.storage;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import org.apache.issueai.AppPaths;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class DatabaseManager {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseManager.class);
-    private static final String DB_URL = "jdbc:sqlite:data/issue_intelligence.db";
+    // private static final String DB_URL = "jdbc:sqlite:data/issue_intelligence.db";
     private static final int CURRENT_SCHEMA_VERSION = 6;
     private static final int MAX_RETRY_ATTEMPTS = 3;
 
     // Interface representing a single, isolated database migration step
     private interface Migration {
         int getTargetVersion();
+
         void execute(Connection conn) throws SQLException;
     }
 
     // Static registry of all sequential database schema migrations
     private static final Migration[] MIGRATIONS = new Migration[] {
-            // Migration 1: Fresh Database Schema Initialization
-            new Migration() {
-                @Override
-                public int getTargetVersion() { return 1; }
-                @Override
-                public void execute(Connection conn) throws SQLException {
-                    LOGGER.info("Initializing fresh SQLite database schema...");
-                    try (Statement stmt = conn.createStatement()) {
-                        stmt.execute(getCreateIssuesTableSql());
-                        stmt.execute(getCreateLabelsTableSql());
-                        stmt.execute(getCreateAiAnalysisTableSql());
-                        stmt.execute(getCreateEmbeddingsTableSql());
-                        stmt.execute(getCreateCrossRepoLinksTableSql());
-                        stmt.execute(getCreateSnapshotsTableSql());
-                        stmt.execute(getCreateJiraMentionsTableSql());
-                        stmt.execute(getCreateMonitoredTableSql());
-                        stmt.execute(getSeedMonitoredTableSql());
-                        stmt.execute(getCreateConfigTableSql());
-                        stmt.execute(getSeedConfigTableSql());
-                        stmt.execute(getCreatePersonalCodeFootprintTableSql());
-                        stmt.execute(getCreatePersonalPrMemoryTableSql());
-                        stmt.execute(getCreatePersonalChatMemoryTableSql());
-                    }
+        // Migration 1: Fresh Database Schema Initialization
+        new Migration() {
+            @Override
+            public int getTargetVersion() {
+                return 1;
+            }
+
+            @Override
+            public void execute(Connection conn) throws SQLException {
+                LOGGER.info("Initializing fresh SQLite database schema...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(getCreateIssuesTableSql());
+                    stmt.execute(getCreateLabelsTableSql());
+                    stmt.execute(getCreateAiAnalysisTableSql());
+                    stmt.execute(getCreateEmbeddingsTableSql());
+                    stmt.execute(getCreateCrossRepoLinksTableSql());
+                    stmt.execute(getCreateSnapshotsTableSql());
+                    stmt.execute(getCreateJiraMentionsTableSql());
+                    stmt.execute(getCreateMonitoredTableSql());
+                    stmt.execute(getSeedMonitoredTableSql());
+                    stmt.execute(getCreateConfigTableSql());
+                    stmt.execute(getSeedConfigTableSql());
+                    stmt.execute(getCreatePersonalCodeFootprintTableSql());
+                    stmt.execute(getCreatePersonalPrMemoryTableSql());
+                    stmt.execute(getCreatePersonalChatMemoryTableSql());
                 }
-            },
-            // Migration 2: Upgrade V1 Legacy tables to composite-key schemas
-            new Migration() {
-                @Override
-                public int getTargetVersion() { return 2; }
-                @Override
-                public void execute(Connection conn) throws SQLException {
-                    LOGGER.info("Upgrading database schema from Version 1 to Version 2...");
-                    try (Statement stmt = conn.createStatement()) {
-                        stmt.execute("PRAGMA foreign_keys = OFF;");
-                    }
+            }
+        },
+        // Migration 2: Upgrade V1 Legacy tables to composite-key schemas
+        new Migration() {
+            @Override
+            public int getTargetVersion() {
+                return 2;
+            }
 
-                    migrateTable(conn, "issues",
-                            "number, title, body, state, comments, created_at, updated_at, is_pull_request, author, author_association",
-                            getCreateIssuesTableSql());
-
-                    migrateTable(conn, "labels",
-                            "issue_number, label_name",
-                            getCreateLabelsTableSql());
-
-                    migrateTable(conn, "ai_analysis",
-                            "issue_number, severity, confidence, reason",
-                            getCreateAiAnalysisTableSql());
-
-                    migrateTable(conn, "embeddings",
-                            "issue_number, vector",
-                            getCreateEmbeddingsTableSql());
-
-                    migrateTable(conn, "snapshots",
-                            "date, critical_issues, high_priority, stale_prs, duplicate_clusters",
-                            getCreateSnapshotsTableSql());
-
-                    try (Statement stmt = conn.createStatement()) {
-                        stmt.execute(getCreateCrossRepoLinksTableSql());
-                        stmt.execute(getCreateJiraMentionsTableSql());
-                        stmt.execute(getCreateMonitoredTableSql());
-                        stmt.execute(getSeedMonitoredTableSql());
-                        stmt.execute("PRAGMA foreign_keys = ON;");
-                    }
+            @Override
+            public void execute(Connection conn) throws SQLException {
+                LOGGER.info("Upgrading database schema from Version 1 to Version 2...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("PRAGMA foreign_keys = OFF;");
                 }
-            },
-            // Migration 3: Add last_synced_at to monitored repositories
-            new Migration() {
-                @Override
-                public int getTargetVersion() { return 3; }
-                @Override
-                public void execute(Connection conn) throws SQLException {
-                    LOGGER.info("Upgrading database schema to Version 3 (Adding delta-sync tracking)...");
-                    if (!columnExists(conn, "monitored_repositories", "last_synced_at")) {
-                        try (Statement stmt = conn.createStatement()) {
-                            stmt.execute("ALTER TABLE monitored_repositories ADD COLUMN last_synced_at TEXT;");
-                        }
-                    }
+
+                migrateTable(
+                        conn,
+                        "issues",
+                        "number, title, body, state, comments, created_at, updated_at, is_pull_request, author, author_association",
+                        getCreateIssuesTableSql());
+
+                migrateTable(conn, "labels", "issue_number, label_name", getCreateLabelsTableSql());
+
+                migrateTable(
+                        conn,
+                        "ai_analysis",
+                        "issue_number, severity, confidence, reason",
+                        getCreateAiAnalysisTableSql());
+
+                migrateTable(conn, "embeddings", "issue_number, vector", getCreateEmbeddingsTableSql());
+
+                migrateTable(
+                        conn,
+                        "snapshots",
+                        "date, critical_issues, high_priority, stale_prs, duplicate_clusters",
+                        getCreateSnapshotsTableSql());
+
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(getCreateCrossRepoLinksTableSql());
+                    stmt.execute(getCreateJiraMentionsTableSql());
+                    stmt.execute(getCreateMonitoredTableSql());
+                    stmt.execute(getSeedMonitoredTableSql());
+                    stmt.execute("PRAGMA foreign_keys = ON;");
                 }
-            },
-            // Migration 4: Create system_config table and seed defaults
-            new Migration() {
-                @Override
-                public int getTargetVersion() { return 4; }
-                @Override
-                public void execute(Connection conn) throws SQLException {
-                    LOGGER.info("Upgrading database schema to Version 4 (Adding system configuration)...");
+            }
+        },
+        // Migration 3: Add last_synced_at to monitored repositories
+        new Migration() {
+            @Override
+            public int getTargetVersion() {
+                return 3;
+            }
+
+            @Override
+            public void execute(Connection conn) throws SQLException {
+                LOGGER.info("Upgrading database schema to Version 3 (Adding delta-sync tracking)...");
+                if (!columnExists(conn, "monitored_repositories", "last_synced_at")) {
                     try (Statement stmt = conn.createStatement()) {
-                        stmt.execute(getCreateConfigTableSql());
-                        stmt.execute(getSeedConfigTableSql());
-                    }
-                }
-            },
-            new Migration() {
-                @Override
-                public int getTargetVersion() { return 5; }
-                @Override
-                public void execute(Connection conn) throws SQLException {
-                    LOGGER.info("Upgrading database schema to Version 5 (Adding personal code footprint)...");
-                    try (Statement stmt = conn.createStatement()) {
-                        stmt.execute(getCreatePersonalCodeFootprintTableSql());
-                    }
-                }
-            },
-            // Migration 6: Create personal_pr_memory and personal_chat_memory tables
-            new Migration() {
-                @Override
-                public int getTargetVersion() { return 6; }
-                @Override
-                public void execute(Connection conn) throws SQLException {
-                    LOGGER.info("Upgrading database schema to Version 6 (Adding personal memory registries)...");
-                    try (Statement stmt = conn.createStatement()) {
-                        stmt.execute(getCreatePersonalPrMemoryTableSql());
-                        stmt.execute(getCreatePersonalChatMemoryTableSql());
+                        stmt.execute("ALTER TABLE monitored_repositories ADD COLUMN last_synced_at TEXT;");
                     }
                 }
             }
+        },
+        // Migration 4: Create system_config table and seed defaults
+        new Migration() {
+            @Override
+            public int getTargetVersion() {
+                return 4;
+            }
+
+            @Override
+            public void execute(Connection conn) throws SQLException {
+                LOGGER.info("Upgrading database schema to Version 4 (Adding system configuration)...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(getCreateConfigTableSql());
+                    stmt.execute(getSeedConfigTableSql());
+                }
+            }
+        },
+        new Migration() {
+            @Override
+            public int getTargetVersion() {
+                return 5;
+            }
+
+            @Override
+            public void execute(Connection conn) throws SQLException {
+                LOGGER.info("Upgrading database schema to Version 5 (Adding personal code footprint)...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(getCreatePersonalCodeFootprintTableSql());
+                }
+            }
+        },
+        // Migration 6: Create personal_pr_memory and personal_chat_memory tables
+        new Migration() {
+            @Override
+            public int getTargetVersion() {
+                return 6;
+            }
+
+            @Override
+            public void execute(Connection conn) throws SQLException {
+                LOGGER.info("Upgrading database schema to Version 6 (Adding personal memory registries)...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute(getCreatePersonalPrMemoryTableSql());
+                    stmt.execute(getCreatePersonalChatMemoryTableSql());
+                }
+            }
+        }
     };
 
     public static Connection getConnection() throws SQLException {
         try {
-            Files.createDirectories(Paths.get("data"));
+            Files.createDirectories(AppPaths.DATA_DIR);
         } catch (IOException e) {
             LOGGER.error("Failed to create database directory structure: {}", e.getMessage());
             throw new SQLException("Failed to create database directory structure", e);
@@ -156,16 +177,17 @@ public class DatabaseManager {
         int attempts = 0;
         while (true) {
             try {
-                return DriverManager.getConnection(DB_URL);
+                return DriverManager.getConnection(AppPaths.DB_URL);
             } catch (SQLException e) {
                 attempts++;
                 if (attempts >= MAX_RETRY_ATTEMPTS) {
                     LOGGER.fatal("Failed to connect to SQLite after {} attempts.", attempts, e);
                     throw e;
                 }
-                LOGGER.warn("Database busy or connection locked. Retrying attempt {}/{}...", attempts, MAX_RETRY_ATTEMPTS);
+                LOGGER.warn(
+                        "Database busy or connection locked. Retrying attempt {}/{}...", attempts, MAX_RETRY_ATTEMPTS);
                 try {
-                    Thread.sleep(100 + (long)(Math.random() * 400));
+                    Thread.sleep(100 + (long) (Math.random() * 400));
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new SQLException("Database connection attempt interrupted", ie);
@@ -190,7 +212,7 @@ public class DatabaseManager {
             // Read current version
             int currentVersion = 0;
             try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SELECT version FROM schema_version;")) {
+                    ResultSet rs = stmt.executeQuery("SELECT version FROM schema_version;")) {
                 if (rs.next()) {
                     currentVersion = rs.getInt("version");
                 }
@@ -216,7 +238,8 @@ public class DatabaseManager {
 
             // Sequentially execute any remaining migrations registered in the array
             for (Migration migration : MIGRATIONS) {
-                if (migration.getTargetVersion() > currentVersion && migration.getTargetVersion() <= CURRENT_SCHEMA_VERSION) {
+                if (migration.getTargetVersion() > currentVersion
+                        && migration.getTargetVersion() <= CURRENT_SCHEMA_VERSION) {
                     migration.execute(conn);
                     setVersion(conn, migration.getTargetVersion());
                     currentVersion = migration.getTargetVersion();
@@ -228,13 +251,14 @@ public class DatabaseManager {
         }
     }
 
-    private static void migrateTable(Connection conn, String tableName, String fields, String createTableSql) throws SQLException {
+    private static void migrateTable(Connection conn, String tableName, String fields, String createTableSql)
+            throws SQLException {
         if (tableExists(conn, tableName)) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("ALTER TABLE " + tableName + " RENAME TO old_" + tableName + ";");
                 stmt.execute(createTableSql);
-                stmt.execute("INSERT INTO " + tableName + " (repository, " + fields + ") " +
-                        "SELECT 'apache/logging-log4j2', " + fields + " FROM old_" + tableName + ";");
+                stmt.execute("INSERT INTO " + tableName + " (repository, " + fields + ") "
+                        + "SELECT 'apache/logging-log4j2', " + fields + " FROM old_" + tableName + ";");
                 stmt.execute("DROP TABLE old_" + tableName + ";");
             }
         } else {
@@ -257,7 +281,7 @@ public class DatabaseManager {
     private static boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
         String sql = "PRAGMA table_info(" + tableName + ");";
         try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 if (columnName.equalsIgnoreCase(rs.getString("name"))) {
                     return true;
@@ -313,7 +337,7 @@ public class DatabaseManager {
 
     private static String getSeedMonitoredTableSql() {
         return """
-                INSERT OR IGNORE INTO monitored_repositories (repository, enabled) VALUES 
+                INSERT OR IGNORE INTO monitored_repositories (repository, enabled) VALUES
                 ('apache/logging-log4j2', 1),
                 ('apache/kafka', 1),
                 ('apache/spark', 1),
@@ -337,7 +361,7 @@ public class DatabaseManager {
 
     private static String getSeedConfigTableSql() {
         return """
-                INSERT OR IGNORE INTO system_config (key, value) VALUES 
+                INSERT OR IGNORE INTO system_config (key, value) VALUES
                 ('ollama.model.triage', 'qwen2.5:0.5b'),
                 ('ollama.model.embedding', 'all-minilm'),
                 ('ollama.model.guidance', 'qwen2.5:7b'),
@@ -346,6 +370,7 @@ public class DatabaseManager {
                 ('drive.paths', '');
                 """;
     }
+
     private static String getCreatePersonalCodeFootprintTableSql() {
         return """
                 CREATE TABLE IF NOT EXISTS personal_code_footprint (
@@ -357,6 +382,7 @@ public class DatabaseManager {
                 );
                 """;
     }
+
     private static String getCreatePersonalPrMemoryTableSql() {
         return """
                 CREATE TABLE IF NOT EXISTS personal_pr_memory (

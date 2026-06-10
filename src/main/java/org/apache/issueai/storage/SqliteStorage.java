@@ -40,7 +40,8 @@ public class SqliteStorage {
             return;
         }
 
-        String insertIssueSql = """
+        String insertIssueSql =
+                """
                 INSERT OR REPLACE INTO issues (
                     repository, number, title, body, state, comments, created_at, updated_at, is_pull_request, author, author_association
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
@@ -50,25 +51,27 @@ public class SqliteStorage {
         String insertLabelSql = "INSERT INTO labels (repository, issue_number, label_name) VALUES (?, ?, ?);";
 
         String deleteLinksSql = "DELETE FROM cross_repo_links WHERE source_repo = ? AND source_number = ?;";
-        String insertLinkSql = """
+        String insertLinkSql =
+                """
                 INSERT OR REPLACE INTO cross_repo_links (
                     source_repo, source_number, target_repo, target_number, link_type
                 ) VALUES (?, ?, ?, ?, ?);
                 """;
 
         String deleteJiraSql = "DELETE FROM jira_mentions WHERE repository = ? AND issue_number = ?;";
-        String insertJiraSql = "INSERT OR REPLACE INTO jira_mentions (repository, issue_number, jira_key) VALUES (?, ?, ?);";
+        String insertJiraSql =
+                "INSERT OR REPLACE INTO jira_mentions (repository, issue_number, jira_key) VALUES (?, ?, ?);";
 
         try (Connection conn = DatabaseManager.getConnection()) {
             conn.setAutoCommit(false);
 
             try (PreparedStatement psIssue = conn.prepareStatement(insertIssueSql);
-                 PreparedStatement psDelLabels = conn.prepareStatement(deleteLabelsSql);
-                 PreparedStatement psLabel = conn.prepareStatement(insertLabelSql);
-                 PreparedStatement psDelLinks = conn.prepareStatement(deleteLinksSql);
-                 PreparedStatement psLink = conn.prepareStatement(insertLinkSql);
-                 PreparedStatement psDelJira = conn.prepareStatement(deleteJiraSql);
-                 PreparedStatement psJira = conn.prepareStatement(insertJiraSql)) {
+                    PreparedStatement psDelLabels = conn.prepareStatement(deleteLabelsSql);
+                    PreparedStatement psLabel = conn.prepareStatement(insertLabelSql);
+                    PreparedStatement psDelLinks = conn.prepareStatement(deleteLinksSql);
+                    PreparedStatement psLink = conn.prepareStatement(insertLinkSql);
+                    PreparedStatement psDelJira = conn.prepareStatement(deleteJiraSql);
+                    PreparedStatement psJira = conn.prepareStatement(insertJiraSql)) {
 
                 for (Issue issue : issues) {
                     // A. Save Issue
@@ -180,8 +183,8 @@ public class SqliteStorage {
         String queryLabelsSql = "SELECT issue_number, label_name FROM labels WHERE repository = ?;";
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement psIssues = conn.prepareStatement(queryIssuesSql);
-             PreparedStatement psLabels = conn.prepareStatement(queryLabelsSql)) {
+                PreparedStatement psIssues = conn.prepareStatement(queryIssuesSql);
+                PreparedStatement psLabels = conn.prepareStatement(queryLabelsSql)) {
 
             // A. Fetch labels map
             psLabels.setString(1, repository);
@@ -216,7 +219,7 @@ public class SqliteStorage {
                             new User(rs.getString("author")),
                             rs.getString("author_association"),
                             repository // Pass repository string as html_url context
-                    );
+                            );
                     results.add(issue);
                 }
             }
@@ -233,10 +236,11 @@ public class SqliteStorage {
             return;
         }
 
-        String sql = "INSERT OR REPLACE INTO ai_analysis (repository, issue_number, severity, confidence, reason) VALUES (?, ?, ?, ?, ?);";
+        String sql =
+                "INSERT OR REPLACE INTO ai_analysis (repository, issue_number, severity, confidence, reason) VALUES (?, ?, ?, ?, ?);";
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             conn.setAutoCommit(false);
             for (AiAnalysisResult r : results) {
                 ps.setString(1, repository);
@@ -256,7 +260,7 @@ public class SqliteStorage {
         List<AiAnalysisResult> results = new ArrayList<>();
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -264,8 +268,7 @@ public class SqliteStorage {
                             rs.getLong("issue_number"),
                             rs.getString("severity"),
                             rs.getDouble("confidence"),
-                            rs.getString("reason")
-                    ));
+                            rs.getString("reason")));
                 }
             }
         }
@@ -276,7 +279,8 @@ public class SqliteStorage {
     // 3. Vector Embeddings Operations
     // ==========================================
 
-    public static void saveEmbeddings(String repository, List<IssueEmbedding> results) throws SQLException, IOException {
+    public static void saveEmbeddings(String repository, List<IssueEmbedding> results)
+            throws SQLException, IOException {
         if (results == null || results.isEmpty()) {
             return;
         }
@@ -284,7 +288,7 @@ public class SqliteStorage {
         String sql = "INSERT OR REPLACE INTO embeddings (repository, issue_number, vector) VALUES (?, ?, ?);";
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             conn.setAutoCommit(false);
             for (IssueEmbedding emb : results) {
                 ps.setString(1, repository);
@@ -303,7 +307,7 @@ public class SqliteStorage {
         List<IssueEmbedding> results = new ArrayList<>();
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -326,14 +330,15 @@ public class SqliteStorage {
             return;
         }
 
-        String sql = """
+        String sql =
+                """
                 INSERT OR REPLACE INTO snapshots (
                     repository, date, critical_issues, high_priority, stale_prs, duplicate_clusters
                 ) VALUES (?, ?, ?, ?, ?, ?);
                 """;
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setString(2, snapshot.date());
             ps.setInt(3, snapshot.criticalIssues());
@@ -349,7 +354,7 @@ public class SqliteStorage {
         List<TrendSnapshot> results = new ArrayList<>();
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -358,8 +363,7 @@ public class SqliteStorage {
                             rs.getInt("critical_issues"),
                             rs.getInt("high_priority"),
                             rs.getInt("stale_prs"),
-                            rs.getInt("duplicate_clusters")
-                    ));
+                            rs.getInt("duplicate_clusters")));
                 }
             }
         }
@@ -369,7 +373,7 @@ public class SqliteStorage {
     public static String loadLastSyncedAt(String repository) throws SQLException {
         String sql = "SELECT last_synced_at FROM monitored_repositories WHERE repository = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -383,7 +387,7 @@ public class SqliteStorage {
     public static void updateLastSyncedAt(String repository, String timestamp) throws SQLException {
         String sql = "UPDATE monitored_repositories SET last_synced_at = ? WHERE repository = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, timestamp);
             ps.setString(2, repository);
             ps.executeUpdate();
@@ -395,20 +399,21 @@ public class SqliteStorage {
     // ==========================================
 
     public static List<org.apache.issueai.model.JiraBridgeLink> loadJiraBridges(String repository) throws SQLException {
-        String sql = """
+        String sql =
+                """
                 SELECT a.issue_number AS local_number, b.repository AS external_repo, b.issue_number AS external_number, a.jira_key
                 FROM jira_mentions a
                 JOIN jira_mentions b ON a.jira_key = b.jira_key
-                WHERE a.repository = ? 
+                WHERE a.repository = ?
                   AND b.repository != ?
                   AND a.jira_key NOT IN (
-                      'UTF-8', 'UTF-16', 'JDK-17', 'JDK-21', 'JDK-8', 'JDK-11', 
+                      'UTF-8', 'UTF-16', 'JDK-17', 'JDK-21', 'JDK-8', 'JDK-11',
                       'SHA-256', 'SHA-1', 'LICENSE-2', 'ISO-8859'
                   );
                 """;
         List<org.apache.issueai.model.JiraBridgeLink> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setString(2, repository);
             try (ResultSet rs = ps.executeQuery()) {
@@ -417,8 +422,7 @@ public class SqliteStorage {
                             rs.getLong("local_number"),
                             rs.getString("external_repo"),
                             rs.getLong("external_number"),
-                            rs.getString("jira_key")
-                    ));
+                            rs.getString("jira_key")));
                 }
             }
         }
@@ -426,24 +430,22 @@ public class SqliteStorage {
     }
 
     public static List<String> loadInboundLinks(String repository) throws SQLException {
-        String sql = """
-                SELECT source_repo, source_number, target_number 
-                FROM cross_repo_links 
+        String sql =
+                """
+                SELECT source_repo, source_number, target_number
+                FROM cross_repo_links
                 WHERE target_repo = ? AND source_repo != ?;
                 """;
         List<String> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setString(2, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     results.add(String.format(
                             "**%s#%d** references our Issue **#%d**",
-                            rs.getString("source_repo"),
-                            rs.getLong("source_number"),
-                            rs.getLong("target_number")
-                    ));
+                            rs.getString("source_repo"), rs.getLong("source_number"), rs.getLong("target_number")));
                 }
             }
         }
@@ -451,24 +453,22 @@ public class SqliteStorage {
     }
 
     public static List<String> loadOutboundLinks(String repository) throws SQLException {
-        String sql = """
-                SELECT source_number, target_repo, target_number 
-                FROM cross_repo_links 
+        String sql =
+                """
+                SELECT source_number, target_repo, target_number
+                FROM cross_repo_links
                 WHERE source_repo = ? AND target_repo != ?;
                 """;
         List<String> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setString(2, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     results.add(String.format(
                             "Our Issue **#%d** references **%s#%d**",
-                            rs.getLong("source_number"),
-                            rs.getString("target_repo"),
-                            rs.getLong("target_number")
-                    ));
+                            rs.getLong("source_number"), rs.getString("target_repo"), rs.getLong("target_number")));
                 }
             }
         }
@@ -483,8 +483,8 @@ public class SqliteStorage {
         String sql = "SELECT repository FROM monitored_repositories WHERE enabled = 1;";
         List<String> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 results.add(rs.getString("repository"));
             }
@@ -495,7 +495,7 @@ public class SqliteStorage {
     public static void saveMonitoredRepository(String repository, boolean enabled) throws SQLException {
         String sql = "INSERT OR REPLACE INTO monitored_repositories (repository, enabled) VALUES (?, ?);";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setBoolean(2, enabled);
             ps.executeUpdate();
@@ -505,7 +505,7 @@ public class SqliteStorage {
     public static void deleteMonitoredRepository(String repository) throws SQLException {
         String sql = "DELETE FROM monitored_repositories WHERE repository = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.executeUpdate();
         }
@@ -520,8 +520,8 @@ public class SqliteStorage {
         List<IssueEmbedding> results = new ArrayList<>();
 
         try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 String repo = rs.getString("repository");
                 long num = rs.getLong("issue_number");
@@ -546,8 +546,8 @@ public class SqliteStorage {
         String queryLabelsSql = "SELECT repository, issue_number, label_name FROM labels;";
 
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement psIssues = conn.prepareStatement(queryIssuesSql);
-             PreparedStatement psLabels = conn.prepareStatement(queryLabelsSql)) {
+                PreparedStatement psIssues = conn.prepareStatement(queryIssuesSql);
+                PreparedStatement psLabels = conn.prepareStatement(queryLabelsSql)) {
 
             // Fetch and group labels in memory by composite key (repository + "_" + issue_number)
             Map<String, List<Label>> labelsMap = new HashMap<>();
@@ -556,7 +556,9 @@ public class SqliteStorage {
                     String repo = rsLabels.getString("repository");
                     long issueNum = rsLabels.getLong("issue_number");
                     String labelName = rsLabels.getString("label_name");
-                    labelsMap.computeIfAbsent(repo + "_" + issueNum, k -> new ArrayList<>()).add(new Label(labelName));
+                    labelsMap
+                            .computeIfAbsent(repo + "_" + issueNum, k -> new ArrayList<>())
+                            .add(new Label(labelName));
                 }
             }
 
@@ -582,7 +584,7 @@ public class SqliteStorage {
                             new User(rs.getString("author")),
                             rs.getString("author_association"),
                             repo // Pass repository string as html_url context
-                    );
+                            );
                     results.add(new RepoIssue(repo, issue));
                 }
             }
@@ -597,7 +599,7 @@ public class SqliteStorage {
     public static String loadConfig(String key) throws SQLException {
         String sql = "SELECT value FROM system_config WHERE key = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, key);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -611,7 +613,7 @@ public class SqliteStorage {
     public static void saveConfig(String key, String value) throws SQLException {
         String sql = "INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?);";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, key);
             ps.setString(2, value);
             ps.executeUpdate();
@@ -622,14 +624,16 @@ public class SqliteStorage {
     // 9. Personal Code Footprint Operations
     // ==========================================
 
-    public static void savePersonalCodeFootprint(String repository, long issueNumber, List<String> filePaths) throws SQLException {
+    public static void savePersonalCodeFootprint(String repository, long issueNumber, List<String> filePaths)
+            throws SQLException {
         String deleteSql = "DELETE FROM personal_code_footprint WHERE repository = ? AND issue_number = ?;";
-        String insertSql = "INSERT OR REPLACE INTO personal_code_footprint (repository, issue_number, file_path) VALUES (?, ?, ?);";
+        String insertSql =
+                "INSERT OR REPLACE INTO personal_code_footprint (repository, issue_number, file_path) VALUES (?, ?, ?);";
 
         try (Connection conn = DatabaseManager.getConnection()) {
             conn.setAutoCommit(false);
             try (PreparedStatement psDel = conn.prepareStatement(deleteSql);
-                 PreparedStatement psIns = conn.prepareStatement(insertSql)) {
+                    PreparedStatement psIns = conn.prepareStatement(insertSql)) {
 
                 psDel.setString(1, repository);
                 psDel.setLong(2, issueNumber);
@@ -655,7 +659,7 @@ public class SqliteStorage {
         String sql = "SELECT DISTINCT file_path FROM personal_code_footprint WHERE repository = ?;";
         List<String> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -672,7 +676,7 @@ public class SqliteStorage {
     public static boolean hasPersonalPrMemory(String repository, long prNumber) throws SQLException {
         String sql = "SELECT 1 FROM personal_pr_memory WHERE repository = ? AND pr_number = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setLong(2, prNumber);
             try (ResultSet rs = ps.executeQuery()) {
@@ -681,10 +685,13 @@ public class SqliteStorage {
         }
     }
 
-    public static void savePersonalPrMemory(String repository, long prNumber, String filesChanged, String generatedStory, double[] vector) throws SQLException, IOException {
-        String sql = "INSERT OR REPLACE INTO personal_pr_memory (repository, pr_number, files_changed, generated_story, vector) VALUES (?, ?, ?, ?, ?);";
+    public static void savePersonalPrMemory(
+            String repository, long prNumber, String filesChanged, String generatedStory, double[] vector)
+            throws SQLException, IOException {
+        String sql =
+                "INSERT OR REPLACE INTO personal_pr_memory (repository, pr_number, files_changed, generated_story, vector) VALUES (?, ?, ?, ?, ?);";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, repository);
             ps.setLong(2, prNumber);
             ps.setString(3, filesChanged);
@@ -697,7 +704,7 @@ public class SqliteStorage {
     public static long loadPersonalChatLastModified(String filePath) throws SQLException {
         String sql = "SELECT last_modified FROM personal_chat_memory WHERE file_path = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, filePath);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -708,10 +715,13 @@ public class SqliteStorage {
         return -1;
     }
 
-    public static void savePersonalChatMemory(String filePath, String fileName, long lastModified, String content, double[] vector) throws SQLException, IOException {
-        String sql = "INSERT OR REPLACE INTO personal_chat_memory (file_path, file_name, last_modified, content, vector) VALUES (?, ?, ?, ?, ?);";
+    public static void savePersonalChatMemory(
+            String filePath, String fileName, long lastModified, String content, double[] vector)
+            throws SQLException, IOException {
+        String sql =
+                "INSERT OR REPLACE INTO personal_chat_memory (file_path, file_name, last_modified, content, vector) VALUES (?, ?, ?, ?, ?);";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, filePath);
             ps.setString(2, fileName);
             ps.setLong(3, lastModified);
@@ -720,10 +730,11 @@ public class SqliteStorage {
             ps.executeUpdate();
         }
     }
+
     public static String loadPersonalChatContent(String filePath) throws SQLException {
         String sql = "SELECT content FROM personal_chat_memory WHERE file_path = ?;";
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, filePath);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -752,8 +763,8 @@ public class SqliteStorage {
         String sql = "SELECT * FROM personal_pr_memory;";
         List<org.apache.issueai.model.PrMemory> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 double[] vector = MAPPER.readValue(rs.getString("vector"), double[].class);
                 results.add(new org.apache.issueai.model.PrMemory(
@@ -761,29 +772,25 @@ public class SqliteStorage {
                         rs.getLong("pr_number"),
                         rs.getString("files_changed"),
                         rs.getString("generated_story"),
-                        vector
-                ));
+                        vector));
             }
         }
         return results;
     }
 
-    public static List<org.apache.issueai.model.ChatMemory> loadAllPersonalChatMemories() throws SQLException, IOException {
+    public static List<org.apache.issueai.model.ChatMemory> loadAllPersonalChatMemories()
+            throws SQLException, IOException {
         String sql = "SELECT file_name, content, vector FROM personal_chat_memory;";
         List<org.apache.issueai.model.ChatMemory> results = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 double[] vector = MAPPER.readValue(rs.getString("vector"), double[].class);
                 results.add(new org.apache.issueai.model.ChatMemory(
-                        rs.getString("file_name"),
-                        rs.getString("content"),
-                        vector
-                ));
+                        rs.getString("file_name"), rs.getString("content"), vector));
             }
         }
         return results;
     }
-
 }

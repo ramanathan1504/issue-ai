@@ -1,37 +1,31 @@
 package org.apache.issueai.cli;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.Callable;
+import org.apache.issueai.AppPaths;
 import org.apache.issueai.report.MarkdownReportWriter;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
-@Command(
-        name = "report",
-        description = "Generate a consolidated weekly health report"
-)
+@Command(name = "report", description = "Generate a consolidated weekly health report")
 public class ReportCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(ReportCommand.class);
-    private static final DateTimeFormatter FILE_NAME_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+    private static final DateTimeFormatter FILE_NAME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Option(
             names = {"--me"},
-            description = "Generate a highly personalized weekly health report tailored specifically to your skillset"
-    )
+            description = "Generate a highly personalized weekly health report tailored specifically to your skillset")
     private boolean me;
 
     @Override
@@ -40,7 +34,8 @@ public class ReportCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -57,13 +52,13 @@ public class ReportCommand implements Callable<Integer> {
             }
 
             // Dynamic personal file output (e.g., reports/ramanathan1504-health-report-20260609-233500.md)
-            reportPath = Paths.get("reports", username + "-health-report-" + timestamp + ".md");
+            reportPath = AppPaths.REPORTS_DIR.resolve(username + "-report-" + timestamp + ".md");
             writer.writePersonalReport(reportPath, repository);
         } else {
             // Standard Repository Report
             String[] parts = repository.split("/");
             String repoName = parts.length == 2 ? parts[1] : "issues";
-            reportPath = Paths.get("reports", repoName + "-issues-report-" + timestamp + ".md");
+            reportPath = AppPaths.REPORTS_DIR.resolve(repoName + "-issues-report-" + timestamp + ".md");
             writer.write(reportPath, repository);
         }
 

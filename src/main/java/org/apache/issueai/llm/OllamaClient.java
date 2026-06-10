@@ -23,18 +23,12 @@ public class OllamaClient {
 
     public OllamaClient(String model) {
         this.model = model;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        this.httpClient =
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     }
 
     public String generateJson(String prompt) throws IOException, InterruptedException {
-        Map<String, Object> requestBody = Map.of(
-                "model", model,
-                "prompt", prompt,
-                "stream", false,
-                "format", "json"
-        );
+        Map<String, Object> requestBody = Map.of("model", model, "prompt", prompt, "stream", false, "format", "json");
 
         String jsonPayload = MAPPER.writeValueAsString(requestBody);
 
@@ -66,8 +60,7 @@ public class OllamaClient {
     public double[] generateEmbedding(String text) throws IOException, InterruptedException {
         Map<String, Object> requestBody = Map.of(
                 "model", model,
-                "input", text
-        );
+                "input", text);
 
         String jsonPayload = MAPPER.writeValueAsString(requestBody);
 
@@ -106,6 +99,7 @@ public class OllamaClient {
             throw e;
         }
     }
+
     public boolean isModelAvailable() {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:11434/api/tags"))
@@ -124,13 +118,13 @@ public class OllamaClient {
         }
         return false;
     }
+
     public String generateText(String prompt) throws IOException, InterruptedException {
         // Standard payload without the "format": "json" constraint
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "prompt", prompt,
-                "stream", false
-        );
+                "stream", false);
 
         String jsonPayload = MAPPER.writeValueAsString(requestBody);
 

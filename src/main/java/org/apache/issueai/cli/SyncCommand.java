@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -18,10 +17,7 @@ import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(
-        name = "sync",
-        description = "Pull live GitHub issues and PRs and save to local SQLite tables"
-)
+@Command(name = "sync", description = "Pull live GitHub issues and PRs and save to local SQLite tables")
 public class SyncCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(SyncCommand.class);
@@ -29,32 +25,27 @@ public class SyncCommand implements Callable<Integer> {
 
     @Option(
             names = {"--me"},
-            description = "Dynamically sync and build your personal contribution profile from GitHub"
-    )
+            description = "Dynamically sync and build your personal contribution profile from GitHub")
     private boolean me;
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Option(
             names = {"-a", "--all"},
-            description = "Sequentially synchronize all active repositories seeded in SQLite"
-    )
+            description = "Sequentially synchronize all active repositories seeded in SQLite")
     private boolean all;
 
     @Option(
             names = {"--add"},
-            description = "Add a new GitHub repository to the local monitoring database"
-    )
+            description = "Add a new GitHub repository to the local monitoring database")
     private String addRepo;
 
     @Option(
             names = {"--remove"},
-            description = "Remove a GitHub repository from the local monitoring database"
-    )
+            description = "Remove a GitHub repository from the local monitoring database")
     private String removeRepo;
 
     @Override
@@ -63,7 +54,8 @@ public class SyncCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -138,13 +130,11 @@ public class SyncCommand implements Callable<Integer> {
         // 2. Query GitHub passing the dynamic "since" timestamp
         List<Issue> allIssues = client.getOpenIssues(owner, repoName, since);
 
-        List<Issue> realIssues = allIssues.stream()
-                .filter(issue -> !issue.isPullRequest())
-                .toList();
+        List<Issue> realIssues =
+                allIssues.stream().filter(issue -> !issue.isPullRequest()).toList();
 
-        List<Issue> pullRequests = allIssues.stream()
-                .filter(Issue::isPullRequest)
-                .toList();
+        List<Issue> pullRequests =
+                allIssues.stream().filter(Issue::isPullRequest).toList();
 
         // 3. Save delta records (new issues insert; modified issues overwrite automatically!)
         SqliteStorage.saveIssues(targetRepo, realIssues);
@@ -170,8 +160,7 @@ public class SyncCommand implements Callable<Integer> {
         issues.stream()
                 .sorted(Comparator.comparingInt(Issue::comments).reversed())
                 .limit(10)
-                .forEach(issue ->
-                        LOGGER.info("#{} ({} comments) {}", issue.number(), issue.comments(), issue.title()));
+                .forEach(issue -> LOGGER.info("#{} ({} comments) {}", issue.number(), issue.comments(), issue.title()));
     }
 
     private void printOldest(List<Issue> issues) {
@@ -179,17 +168,16 @@ public class SyncCommand implements Callable<Integer> {
         issues.stream()
                 .sorted(Comparator.comparing(issue -> Instant.parse(issue.created_at())))
                 .limit(10)
-                .forEach(issue ->
-                        LOGGER.info("#{} {}", issue.number(), issue.title()));
+                .forEach(issue -> LOGGER.info("#{} {}", issue.number(), issue.title()));
     }
 
     private void printRecentlyUpdated(List<Issue> issues) {
         LOGGER.info("--- Recently Updated ---");
         issues.stream()
-                .sorted(Comparator.comparing((Issue issue) -> Instant.parse(issue.updated_at())).reversed())
+                .sorted(Comparator.comparing((Issue issue) -> Instant.parse(issue.updated_at()))
+                        .reversed())
                 .limit(10)
-                .forEach(issue ->
-                        LOGGER.info("#{} {}", issue.number(), issue.title()));
+                .forEach(issue -> LOGGER.info("#{} {}", issue.number(), issue.title()));
     }
 
     private int syncPersonalProfile() throws Exception {
@@ -236,7 +224,10 @@ public class SyncCommand implements Callable<Integer> {
         if (lastSyncedMe != null && !lastSyncedMe.trim().isEmpty()) {
             // Incremental Delta Sync: Query only PRs merged since our last run
             searchQuery = String.format("author:%s type:pr is:merged merged:>=%s", username, lastSyncedMe);
-            LOGGER.info("Starting incremental Personal Sync for '{}' (fetching changes merged since {})...", username, lastSyncedMe);
+            LOGGER.info(
+                    "Starting incremental Personal Sync for '{}' (fetching changes merged since {})...",
+                    username,
+                    lastSyncedMe);
         } else {
             // Initial Full Sync: Query all merged PRs from the last 365 days
             String sinceDate = LocalDate.now().minusYears(1).toString() + "T00:00:00Z";
@@ -279,50 +270,55 @@ public class SyncCommand implements Callable<Integer> {
                     SqliteStorage.savePersonalCodeFootprint(sourceRepo, pr.number(), modifiedFiles);
                     LOGGER.info("    ↳ Logged {} modified file paths in '{}'.", modifiedFiles.size(), sourceRepo);
                 } catch (Exception e) {
-                    LOGGER.warn("    ↳ [Warning] Could not extract changed files from {}: {}", sourceRepo, e.getMessage());
+                    LOGGER.warn(
+                            "    ↳ [Warning] Could not extract changed files from {}: {}", sourceRepo, e.getMessage());
                 }
 
                 // Generate PR Story Note if it does not exist in SQLite
                 try {
                     if (!SqliteStorage.hasPersonalPrMemory(sourceRepo, pr.number())) {
-                        LOGGER.info("    Generating automated Development Story for PR #{} using model '{}'...", pr.number(), guidanceModel);
+                        LOGGER.info(
+                                "    Generating automated Development Story for PR #{} using model '{}'...",
+                                pr.number(),
+                                guidanceModel);
 
-                        String summaryPrompt = String.format("""
+                        String summaryPrompt = String.format(
+                                """
                                 You are an maintainer.
                                 Summarize the following pull request as a personal development story.
                                 Explain:
                                 1. What problem was solved.
                                 2. What files were changed and why.
                                 3. What feedback was addressed during code review.
-                                
+
                                 PR Title: %s
                                 PR Description: %s
                                 Files Changed: %s
-                                
+
                                 Keep the story concise and technical.
-                                """, pr.title(), pr.body(), String.join(", ", modifiedFiles));
+                                """,
+                                pr.title(), pr.body(), String.join(", ", modifiedFiles));
 
                         String generatedStory = guideOllama.generateJson(summaryPrompt);
                         double[] storyVector = embedOllama.generateEmbedding(generatedStory);
 
                         SqliteStorage.savePersonalPrMemory(
-                                sourceRepo,
-                                pr.number(),
-                                String.join(", ", modifiedFiles),
-                                generatedStory,
-                                storyVector
-                        );
+                                sourceRepo, pr.number(), String.join(", ", modifiedFiles), generatedStory, storyVector);
                         LOGGER.info("    ↳ Saved PR #{} Development Story to local SQLite memory.", pr.number());
                     }
                 } catch (Exception e) {
-                    LOGGER.warn("    ↳ [Warning] Could not generate AI development story for PR #{}: {}", pr.number(), e.getMessage());
+                    LOGGER.warn(
+                            "    ↳ [Warning] Could not generate AI development story for PR #{}: {}",
+                            pr.number(),
+                            e.getMessage());
                 }
             }
 
             // Generate Semantic Developer Expertise Vector
             LOGGER.info("Generating semantic Developer Expertise Vector using model '{}'...", embedModel);
             try {
-                double[] vector = embedOllama.generateEmbedding(experienceDoc.toString().trim());
+                double[] vector =
+                        embedOllama.generateEmbedding(experienceDoc.toString().trim());
                 String jsonVector = MAPPER.writeValueAsString(vector);
                 SqliteStorage.saveConfig("developer.vector", jsonVector);
                 LOGGER.info("  ↳ Personal Developer Expertise Vector successfully saved to SQLite.");
@@ -345,8 +341,7 @@ public class SyncCommand implements Callable<Integer> {
                 }
 
                 try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(localPath)) {
-                    List<java.nio.file.Path> files = stream
-                            .filter(java.nio.file.Files::isRegularFile)
+                    List<java.nio.file.Path> files = stream.filter(java.nio.file.Files::isRegularFile)
                             .filter(p -> {
                                 String name = p.toString().toLowerCase();
                                 return !name.endsWith(".png")
@@ -362,12 +357,16 @@ public class SyncCommand implements Callable<Integer> {
                             })
                             .toList();
 
-                    LOGGER.info("  ↳ Found {} total active discussion files inside '{}' and its subfolders.", files.size(), localPath.getFileName());
+                    LOGGER.info(
+                            "  ↳ Found {} total active discussion files inside '{}' and its subfolders.",
+                            files.size(),
+                            localPath.getFileName());
 
                     for (java.nio.file.Path file : files) {
                         String fileName = file.getFileName().toString();
                         String absolutePath = file.toAbsolutePath().toString();
-                        long lastModified = java.nio.file.Files.getLastModifiedTime(file).toMillis();
+                        long lastModified =
+                                java.nio.file.Files.getLastModifiedTime(file).toMillis();
 
                         byte[] fileBytes = java.nio.file.Files.readAllBytes(file);
                         String content = new String(fileBytes, java.nio.charset.StandardCharsets.UTF_8);
@@ -383,10 +382,13 @@ public class SyncCommand implements Callable<Integer> {
                                 try {
                                     JsonNode root = MAPPER.readTree(fileBytes);
                                     if (root.isArray()) {
-                                        LOGGER.info("      ↳ Detected JSON Export Array. Splitting into individual memories...");
+                                        LOGGER.info(
+                                                "      ↳ Detected JSON Export Array. Splitting into individual memories...");
                                         for (int i = 0; i < root.size(); i++) {
                                             JsonNode chatNode = root.get(i);
-                                            String title = chatNode.has("title") ? chatNode.get("title").asText() : fileName + "_Part_" + i;
+                                            String title = chatNode.has("title")
+                                                    ? chatNode.get("title").asText()
+                                                    : fileName + "_Part_" + i;
                                             String chatContent = chatNode.toString();
                                             // Truncate massively long chats to fit into embedding context window
                                             if (chatContent.length() > 5000) {
@@ -396,28 +398,43 @@ public class SyncCommand implements Callable<Integer> {
                                             double[] chatVector = embedOllama.generateEmbedding(chatContent);
                                             String subFileName = title.replaceAll("[^a-zA-Z0-9-_]", "_") + ".json";
                                             // Save chunk with uniquely appended hash path
-                                            SqliteStorage.savePersonalChatMemory(absolutePath + "#" + i, subFileName, lastModified, chatContent, chatVector);
+                                            SqliteStorage.savePersonalChatMemory(
+                                                    absolutePath + "#" + i,
+                                                    subFileName,
+                                                    lastModified,
+                                                    chatContent,
+                                                    chatVector);
                                         }
-                                        LOGGER.info("      ↳ Successfully indexed {} historical JSON conversations.", root.size());
+                                        LOGGER.info(
+                                                "      ↳ Successfully indexed {} historical JSON conversations.",
+                                                root.size());
                                         continue;
                                     }
                                 } catch (Exception e) {
-                                    LOGGER.warn("      ↳ Not a valid JSON Array, falling back to standard text ingestion.");
+                                    LOGGER.warn(
+                                            "      ↳ Not a valid JSON Array, falling back to standard text ingestion.");
                                 }
                             }
 
                             // 2. STANDARD TEXT PARSER (For Markdown / TXT or non-array JSON)
                             try {
                                 double[] chatVector = embedOllama.generateEmbedding(content);
-                                SqliteStorage.savePersonalChatMemory(absolutePath, fileName, lastModified, content, chatVector);
+                                SqliteStorage.savePersonalChatMemory(
+                                        absolutePath, fileName, lastModified, content, chatVector);
                                 LOGGER.info("    ↳ Successfully cached and indexed '{}'.", fileName);
                             } catch (Exception e) {
-                                LOGGER.warn("    ↳ [Warning] Could not generate embedding for '{}': {}", fileName, e.getMessage());
+                                LOGGER.warn(
+                                        "    ↳ [Warning] Could not generate embedding for '{}': {}",
+                                        fileName,
+                                        e.getMessage());
                             }
                         }
                     }
                 } catch (Exception e) {
-                    LOGGER.error("Failed to scan Google Drive directory recursively '{}': {}", localPath.toAbsolutePath(), e.getMessage());
+                    LOGGER.error(
+                            "Failed to scan Google Drive directory recursively '{}': {}",
+                            localPath.toAbsolutePath(),
+                            e.getMessage());
                 }
             }
         } else {
@@ -427,7 +444,8 @@ public class SyncCommand implements Callable<Integer> {
         // C. Update the sync timestamp in SQLite on success
         SqliteStorage.saveConfig("developer.last_synced_at", startRunTime.toString());
 
-        LOGGER.info("Personal Sync completed successfully. Your complete developer footprint and AI logs are cached locally!");
+        LOGGER.info(
+                "Personal Sync completed successfully. Your complete developer footprint and AI logs are cached locally!");
         return 0;
     }
 }

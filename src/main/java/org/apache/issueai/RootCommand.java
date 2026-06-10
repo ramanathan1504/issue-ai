@@ -1,4 +1,5 @@
 package org.apache.issueai;
+
 import org.apache.issueai.cli.*;
 import picocli.CommandLine.Command;
 
@@ -7,22 +8,20 @@ import picocli.CommandLine.Command;
         mixinStandardHelpOptions = true,
         version = "0.1",
         subcommands = {
-                SyncCommand.class,
-                CriticalCommand.class,
-                AnalyzeCommand.class,
-                HiddenCriticalCommand.class,
-                DuplicatesCommand.class,
-                SearchCommand.class,
-                PrsCommand.class,
-                ReportCommand.class,
-                TrendCommand.class,
-                TriageCommand.class,
-                SetupCommand.class,
-                GuideCommand.class,
-                ChatCommand.class,
-                BackupCommand.class,
-                RestoreCommand.class
-        }
-)
-public class RootCommand {
-}
+            SyncCommand.class,
+            CriticalCommand.class,
+            AnalyzeCommand.class,
+            HiddenCriticalCommand.class,
+            DuplicatesCommand.class,
+            SearchCommand.class,
+            PrsCommand.class,
+            ReportCommand.class,
+            TrendCommand.class,
+            TriageCommand.class,
+            SetupCommand.class,
+            GuideCommand.class,
+            ChatCommand.class,
+            BackupCommand.class,
+            RestoreCommand.class
+        })
+public class RootCommand {}

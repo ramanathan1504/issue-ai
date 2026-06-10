@@ -17,6 +17,7 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.issueai.AppPaths;
 import org.apache.issueai.storage.SqliteStorage;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,8 +25,8 @@ import picocli.CommandLine.Command;
 
 @Command(
         name = "backup",
-        description = "Export your entire AI memory and database into a portable archive with auto-rotation (keeps last 5)"
-)
+        description =
+                "Export your entire AI memory and database into a portable archive with auto-rotation (keeps last 5)")
 public class BackupCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(BackupCommand.class);
@@ -33,7 +34,7 @@ public class BackupCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        Path dataDir = Paths.get("data");
+        Path dataDir = AppPaths.DATA_DIR;
         if (!Files.exists(dataDir)) {
             LOGGER.error("No 'data' directory found. There is nothing to backup.");
             return 1;
@@ -41,11 +42,13 @@ public class BackupCommand implements Callable<Integer> {
 
         // 1. Resolve target backup directory from configuration
         String backupPathStr = SqliteStorage.loadConfig("backup.path");
+        Path targetBackupDir;
         if (backupPathStr == null || backupPathStr.trim().isEmpty()) {
-            backupPathStr = "backups"; // Safe default inside the project directory
+            targetBackupDir = AppPaths.BACKUPS_DIR; // Use global backups folder
+        } else {
+            targetBackupDir = Paths.get(backupPathStr);
         }
 
-        Path targetBackupDir = Paths.get(backupPathStr);
         if (!Files.exists(targetBackupDir)) {
             Files.createDirectories(targetBackupDir);
         }
@@ -57,7 +60,7 @@ public class BackupCommand implements Callable<Integer> {
         LOGGER.info("Starting automated backup of your local AI Memory into '{}'...", targetBackupDir.toAbsolutePath());
 
         try (FileOutputStream fos = new FileOutputStream(backupFile.toFile());
-             ZipOutputStream zos = new ZipOutputStream(fos)) {
+                ZipOutputStream zos = new ZipOutputStream(fos)) {
 
             Files.walkFileTree(dataDir, new SimpleFileVisitor<Path>() {
                 @Override
@@ -93,8 +96,7 @@ public class BackupCommand implements Callable<Integer> {
 
     private void enforceBackupLimit(Path backupDir) {
         try (java.util.stream.Stream<Path> stream = Files.list(backupDir)) {
-            List<Path> backups = stream
-                    .filter(p -> p.getFileName().toString().startsWith("issueai_brain_backup_")
+            List<Path> backups = stream.filter(p -> p.getFileName().toString().startsWith("issueai_brain_backup_")
                             && p.getFileName().toString().endsWith(".zip"))
                     .sorted(Comparator.comparingLong(p -> p.toFile().lastModified())) // Sort oldest first
                     .collect(Collectors.toList());

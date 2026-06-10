@@ -7,23 +7,19 @@ import java.util.stream.Collectors;
 import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
-@Command(
-        name = "hidden-critical",
-        description = "Find critical issues that maintainers may have underestimated"
-)
+@Command(name = "hidden-critical", description = "Find critical issues that maintainers may have underestimated")
 public class HiddenCriticalCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(HiddenCriticalCommand.class);
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Override
@@ -32,7 +28,8 @@ public class HiddenCriticalCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -41,13 +38,15 @@ public class HiddenCriticalCommand implements Callable<Integer> {
         List<AiAnalysisResult> aiResults = SqliteStorage.loadAiAnalysis(repository);
 
         if (issues.isEmpty() || aiResults.isEmpty()) {
-            LOGGER.error("Required local data is missing for '{}'. Please run 'sync' followed by 'analyze' first.", repository);
+            LOGGER.error(
+                    "Required local data is missing for '{}'. Please run 'sync' followed by 'analyze' first.",
+                    repository);
             return 1;
         }
 
         // Map AI results by issue number for fast lookup
-        Map<Long, AiAnalysisResult> aiMap = aiResults.stream()
-                .collect(Collectors.toMap(AiAnalysisResult::issueNumber, result -> result));
+        Map<Long, AiAnalysisResult> aiMap =
+                aiResults.stream().collect(Collectors.toMap(AiAnalysisResult::issueNumber, result -> result));
 
         LOGGER.info("Hidden Critical Issues Report for '{}'", repository);
         LOGGER.info("====================================================");
@@ -79,8 +78,7 @@ public class HiddenCriticalCommand implements Callable<Integer> {
                 isHiddenCritical = true;
                 detectionReason = String.format(
                         "Has %d comments, bug label, and predicted severity is %s.",
-                        issue.comments(),
-                        aiResult.severity());
+                        issue.comments(), aiResult.severity());
             }
 
             if (isHiddenCritical) {
@@ -88,14 +86,15 @@ public class HiddenCriticalCommand implements Callable<Integer> {
 
                 String labelsStr = issue.labels() == null || issue.labels().isEmpty()
                         ? "[]"
-                        : issue.labels().stream()
-                        .map(label -> label.name())
-                        .collect(Collectors.joining(", "));
+                        : issue.labels().stream().map(label -> label.name()).collect(Collectors.joining(", "));
 
                 LOGGER.info("Issue #{}", issue.number());
                 LOGGER.info("  Title: {}", issue.title());
                 LOGGER.info("  Current Labels: {}", labelsStr);
-                LOGGER.info("  AI Severity: {} (Confidence: {})", aiResult.severity(), String.format("%.2f",aiResult.confidence()));
+                LOGGER.info(
+                        "  AI Severity: {} (Confidence: {})",
+                        aiResult.severity(),
+                        String.format("%.2f", aiResult.confidence()));
                 LOGGER.info("  AI Reason: {}", aiResult.reason());
                 LOGGER.info("  Detection Rule: {}", detectionReason);
             }

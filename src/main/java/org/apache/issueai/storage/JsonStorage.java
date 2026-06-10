@@ -8,16 +8,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.model.Issue;
 
 public class JsonStorage {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .enable(SerializationFeature.INDENT_OUTPUT);
+    private static final ObjectMapper MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private static final Path HISTORY_DIR = Paths.get("history");
-
 
     private static final Path DATA_DIR = Paths.get("data");
 
@@ -39,8 +36,7 @@ public class JsonStorage {
             return List.of();
         }
         return MAPPER.readValue(
-                filePath.toFile(),
-                MAPPER.getTypeFactory().constructCollectionType(List.class, Issue.class));
+                filePath.toFile(), MAPPER.getTypeFactory().constructCollectionType(List.class, Issue.class));
     }
 
     public static List<Issue> loadPullRequests() throws IOException {
@@ -49,9 +45,9 @@ public class JsonStorage {
             return List.of();
         }
         return MAPPER.readValue(
-                filePath.toFile(),
-                MAPPER.getTypeFactory().constructCollectionType(List.class, Issue.class));
+                filePath.toFile(), MAPPER.getTypeFactory().constructCollectionType(List.class, Issue.class));
     }
+
     public static void saveAiAnalysis(List<AiAnalysisResult> results) throws java.io.IOException {
         Files.createDirectories(DATA_DIR);
         Path filePath = DATA_DIR.resolve("ai-analysis.json");
@@ -64,10 +60,11 @@ public class JsonStorage {
             return List.of();
         }
         return MAPPER.readValue(
-                filePath.toFile(),
-                MAPPER.getTypeFactory().constructCollectionType(List.class, AiAnalysisResult.class));
+                filePath.toFile(), MAPPER.getTypeFactory().constructCollectionType(List.class, AiAnalysisResult.class));
     }
-    public static void saveEmbeddings(List<org.apache.issueai.model.IssueEmbedding> results) throws java.io.IOException {
+
+    public static void saveEmbeddings(List<org.apache.issueai.model.IssueEmbedding> results)
+            throws java.io.IOException {
         Files.createDirectories(DATA_DIR);
         Path filePath = DATA_DIR.resolve("embeddings.json");
         MAPPER.writeValue(filePath.toFile(), results);
@@ -80,7 +77,8 @@ public class JsonStorage {
         }
         return MAPPER.readValue(
                 filePath.toFile(),
-                MAPPER.getTypeFactory().constructCollectionType(List.class, org.apache.issueai.model.IssueEmbedding.class));
+                MAPPER.getTypeFactory()
+                        .constructCollectionType(List.class, org.apache.issueai.model.IssueEmbedding.class));
     }
 
     public static void saveTrendSnapshot(org.apache.issueai.model.TrendSnapshot snapshot) throws java.io.IOException {
@@ -94,9 +92,8 @@ public class JsonStorage {
             return List.of();
         }
         try (var stream = Files.list(HISTORY_DIR)) {
-            List<Path> files = stream
-                    .filter(path -> path.toString().endsWith(".json"))
-                    .toList();
+            List<Path> files =
+                    stream.filter(path -> path.toString().endsWith(".json")).toList();
 
             List<org.apache.issueai.model.TrendSnapshot> snapshots = new ArrayList<>();
             for (Path p : files) {

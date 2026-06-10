@@ -10,15 +10,13 @@ import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import org.apache.issueai.AppPaths;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
-@Command(
-        name = "restore",
-        description = "Import and restore your AI memory and database from a backup archive"
-)
+@Command(name = "restore", description = "Import and restore your AI memory and database from a backup archive")
 public class RestoreCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(RestoreCommand.class);
@@ -30,11 +28,12 @@ public class RestoreCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         Path zipPath = Paths.get(backupFilePath);
         if (!Files.exists(zipPath) || !backupFilePath.endsWith(".zip")) {
-            LOGGER.error("Invalid backup file: {}. Please provide a valid .zip backup archive.", zipPath.toAbsolutePath());
+            LOGGER.error(
+                    "Invalid backup file: {}. Please provide a valid .zip backup archive.", zipPath.toAbsolutePath());
             return 1;
         }
 
-        Path dataDir = Paths.get("data");
+        Path dataDir = AppPaths.DATA_DIR;
         if (!Files.exists(dataDir)) {
             Files.createDirectories(dataDir);
         }

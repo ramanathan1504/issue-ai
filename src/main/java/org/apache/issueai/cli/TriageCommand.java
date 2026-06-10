@@ -6,38 +6,31 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.analyzer.IssueAnalysis;
 import org.apache.issueai.analyzer.SeverityAnalyzer;
+import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.model.JiraBridgeLink;
 import org.apache.issueai.model.Label;
 import org.apache.issueai.storage.SqliteStorage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-@Command(
-        name = "triage",
-        description = "Perform a consolidated automated triage audit on a specific issue"
-)
+@Command(name = "triage", description = "Perform a consolidated automated triage audit on a specific issue")
 public class TriageCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(TriageCommand.class);
 
-    @Parameters(
-            index = "0",
-            description = "The issue or PR number to triage"
-    )
+    @Parameters(index = "0", description = "The issue or PR number to triage")
     private long issueNumber;
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository (owner/name)"
-    )
+            description = "The target GitHub repository (owner/name)")
     private String repository;
 
     @Override
@@ -46,7 +39,8 @@ public class TriageCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -75,15 +69,13 @@ public class TriageCommand implements Callable<Integer> {
         }
 
         if (target == null) {
-            LOGGER.error("Issue #{} not found in local data for '{}'. Please run 'sync' first.", issueNumber, repository);
+            LOGGER.error(
+                    "Issue #{} not found in local data for '{}'. Please run 'sync' first.", issueNumber, repository);
             return 1;
         }
 
         LOGGER.info("==================================================");
-        LOGGER.info("Triage Report: {} #{} ({})",
-                target.isPullRequest() ? "PR" : "Issue",
-                issueNumber,
-                repository);
+        LOGGER.info("Triage Report: {} #{} ({})", target.isPullRequest() ? "PR" : "Issue", issueNumber, repository);
         LOGGER.info("==================================================");
 
         // A. Metadata Output
@@ -115,7 +107,10 @@ public class TriageCommand implements Callable<Integer> {
         LOGGER.info("[SEVERITY ASSESSMENT]%n");
         LOGGER.info("  • V1 Rule Score: {} ({})", v1Analysis.score(), v1Analysis.severity());
         if (targetAi != null) {
-            LOGGER.info("  • AI Severity:   {} (Confidence: {})", targetAi.severity(), String.format("%.2f",targetAi.confidence()));
+            LOGGER.info(
+                    "  • AI Severity:   {} (Confidence: {})",
+                    targetAi.severity(),
+                    String.format("%.2f", targetAi.confidence()));
             LOGGER.info("  • AI Reason:     {}", targetAi.reason());
         } else {
             LOGGER.info("  • AI Severity:   (No AI evaluation found. Run 'analyze' first.)");
@@ -142,10 +137,16 @@ public class TriageCommand implements Callable<Integer> {
                         // Find title of similar issue
                         String title = "Unknown Title";
                         for (Issue i : issues) {
-                            if (i.number() == emb.issueNumber()) { title = i.title(); break; }
+                            if (i.number() == emb.issueNumber()) {
+                                title = i.title();
+                                break;
+                            }
                         }
                         for (Issue p : prs) {
-                            if (p.number() == emb.issueNumber()) { title = p.title(); break; }
+                            if (p.number() == emb.issueNumber()) {
+                                title = p.title();
+                                break;
+                            }
                         }
                         similarIssues.add(String.format("#%d - %s (%.2f Similarity)", emb.issueNumber(), title, sim));
                     }
@@ -158,21 +159,20 @@ public class TriageCommand implements Callable<Integer> {
                 for (String line : similarIssues) {
                     LOGGER.info("    - {}", line);
                 }
-
             }
         }
 
         // D. Ecosystem / JIRA Bridges
         LOGGER.info("[ECOSYSTEM / JIRA BRIDGES]%n");
-        List<JiraBridgeLink> filteredBridges = jiraBridges.stream()
-                .filter(b -> b.localNumber() == issueNumber)
-                .toList();
+        List<JiraBridgeLink> filteredBridges =
+                jiraBridges.stream().filter(b -> b.localNumber() == issueNumber).toList();
 
         if (filteredBridges.isEmpty()) {
             LOGGER.info("  No ecosystem connections or JIRA bridge matches found.");
         } else {
             for (JiraBridgeLink b : filteredBridges) {
-               LOGGER.info("  • Connection: Matches {}#{} via JIRA Key [{}]",
+                LOGGER.info(
+                        "  • Connection: Matches {}#{} via JIRA Key [{}]",
                         b.externalRepo(),
                         b.externalNumber(),
                         b.jiraKey());
@@ -180,7 +180,7 @@ public class TriageCommand implements Callable<Integer> {
         }
 
         // E. Action Log & Recommendation Logic
-       LOGGER.info("[RECOMMENDED ACTION LOG]%n");
+        LOGGER.info("[RECOMMENDED ACTION LOG]%n");
         List<String> actions = new ArrayList<>();
 
         // Logic check: Hidden Critical
@@ -191,16 +191,20 @@ public class TriageCommand implements Callable<Integer> {
             boolean hasBugLabel = target.hasLabel("bug") || target.hasLabel("bug-label");
 
             if (!hasSecurityLabel && isCriticalAi) {
-                actions.add("⚠ ACTION: Escalate and add SECURITY label (flagged as HIDDEN CRITICAL; AI predicted Critical but lacks security tags).");
+                actions.add(
+                        "⚠ ACTION: Escalate and add SECURITY label (flagged as HIDDEN CRITICAL; AI predicted Critical but lacks security tags).");
             } else if (target.comments() > 15 && hasBugLabel && isHighAi) {
-                actions.add(String.format("⚠ ACTION: Address user noise (has %d comments, bug label, and high AI prediction).", target.comments()));
+                actions.add(String.format(
+                        "⚠ ACTION: Address user noise (has %d comments, bug label, and high AI prediction).",
+                        target.comments()));
             }
         }
 
         // Logic check: Stale
         long daysSinceUpdate = ChronoUnit.DAYS.between(Instant.parse(target.updated_at()), Instant.now());
         if (daysSinceUpdate > 30) {
-            actions.add(String.format("⚠ ACTION: Check stale status (last activity was %d days ago).", daysSinceUpdate));
+            actions.add(
+                    String.format("⚠ ACTION: Check stale status (last activity was %d days ago).", daysSinceUpdate));
         }
 
         // Logic check: Missing reviewer (Review needed)
@@ -212,7 +216,7 @@ public class TriageCommand implements Callable<Integer> {
             LOGGER.info("  ✔ No immediate actions required. Backlog state is clean.");
         } else {
             for (String act : actions) {
-                LOGGER.info(" {} " , act);
+                LOGGER.info(" {} ", act);
             }
         }
         LOGGER.info("==================================================");

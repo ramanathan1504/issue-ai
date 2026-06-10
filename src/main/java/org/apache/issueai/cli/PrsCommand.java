@@ -13,22 +13,20 @@ import org.apache.issueai.analyzer.Severity;
 import org.apache.issueai.analyzer.SeverityAnalyzer;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.storage.SqliteStorage;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
 
-@Command(
-        name = "prs",
-        description = "Analyze cached open pull requests for stale status, reviews, and critical fixes"
-)
+@Command(name = "prs", description = "Analyze cached open pull requests for stale status, reviews, and critical fixes")
 public class PrsCommand implements Callable<Integer> {
     private static final Logger LOGGER = LogManager.getLogger(PrsCommand.class);
+
     @CommandLine.Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
+
     private static final Pattern ISSUE_REF_PATTERN = Pattern.compile("#(\\d+)");
 
     @Override
@@ -37,7 +35,8 @@ public class PrsCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -57,7 +56,8 @@ public class PrsCommand implements Callable<Integer> {
             issues.stream()
                     .map(severityAnalyzer::analyze)
                     .filter(analysis -> analysis.severity() == Severity.CRITICAL)
-                    .forEach(analysis -> criticalIssueNumbers.add((int) analysis.issue().number()));
+                    .forEach(analysis ->
+                            criticalIssueNumbers.add((int) analysis.issue().number()));
         }
 
         LOGGER.info("Pull Request Intelligence Report");
@@ -93,9 +93,7 @@ public class PrsCommand implements Callable<Integer> {
                 if (criticalIssueNumbers.contains(num)) {
                     criticalFixes.add(String.format(
                             "PR #%d  Fixes: Issue #%d  Severity: Critical  Waiting: %d days",
-                            pr.number(),
-                            num,
-                            daysOpen));
+                            pr.number(), num, daysOpen));
                 }
             }
         }
@@ -108,11 +106,7 @@ public class PrsCommand implements Callable<Integer> {
         } else {
             for (Issue pr : stalePrs) {
                 long daysSinceUpdate = ChronoUnit.DAYS.between(Instant.parse(pr.updated_at()), now);
-                LOGGER.info(
-                        "#{}  Title: {}  Last Activity: {} days ago",
-                        pr.number(),
-                        pr.title(),
-                        daysSinceUpdate);
+                LOGGER.info("#{}  Title: {}  Last Activity: {} days ago", pr.number(), pr.title(), daysSinceUpdate);
             }
         }
 
@@ -124,11 +118,7 @@ public class PrsCommand implements Callable<Integer> {
         } else {
             for (Issue pr : reviewsNeeded) {
                 long daysOpen = ChronoUnit.DAYS.between(Instant.parse(pr.created_at()), now);
-                LOGGER.info(
-                        "#{}  Title: {}  Waiting: {} days",
-                        pr.number(),
-                        pr.title(),
-                        daysOpen);
+                LOGGER.info("#{}  Title: {}  Waiting: {} days", pr.number(), pr.title(), daysOpen);
             }
         }
 

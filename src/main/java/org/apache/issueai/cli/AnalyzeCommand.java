@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.llm.OllamaClient;
+import org.apache.issueai.model.AiAnalysisResult;
 import org.apache.issueai.model.Issue;
 import org.apache.issueai.storage.SqliteStorage;
 import org.apache.logging.log4j.LogManager;
@@ -16,10 +16,7 @@ import org.apache.logging.log4j.Logger;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-@Command(
-        name = "analyze",
-        description = "Perform batch AI Severity Analysis on open issues via local Ollama"
-)
+@Command(name = "analyze", description = "Perform batch AI Severity Analysis on open issues via local Ollama")
 public class AnalyzeCommand implements Callable<Integer> {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyzeCommand.class);
@@ -27,14 +24,12 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)"
-    )
+            description = "The target GitHub repository to analyze (owner/name)")
     private String repository;
 
     @Option(
             names = {"-m", "--model"},
-            description = "Ollama model name to use"
-    )
+            description = "Ollama model name to use")
     private String modelName;
 
     @Override
@@ -42,7 +37,8 @@ public class AnalyzeCommand implements Callable<Integer> {
         if (repository == null) {
             repository = SqliteStorage.loadConfig("default.repository");
             if (repository == null || repository.trim().isEmpty()) {
-                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                LOGGER.error(
+                        "No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
                 return 1;
             }
         }
@@ -62,9 +58,8 @@ public class AnalyzeCommand implements Callable<Integer> {
 
         // 2. Load existing AI analyses to PREVENT redundant re-analysis
         List<AiAnalysisResult> existingResults = SqliteStorage.loadAiAnalysis(repository);
-        Set<Long> alreadyAnalyzed = existingResults.stream()
-                .map(AiAnalysisResult::issueNumber)
-                .collect(Collectors.toSet());
+        Set<Long> alreadyAnalyzed =
+                existingResults.stream().map(AiAnalysisResult::issueNumber).collect(Collectors.toSet());
 
         LOGGER.info("Starting AI Severity Analysis for '{}' using model '{}'...", repository, modelName);
 
@@ -84,37 +79,35 @@ public class AnalyzeCommand implements Callable<Integer> {
 
             LOGGER.info("Analyzing Issue #{}: {}", issue.number(), issue.title());
 
-            String prompt = String.format("""
+            String prompt = String.format(
+                    """
                     You are an expert maintainer for the '%s' open-source repository.
                     Classify the severity of the following GitHub issue.
-                    
+
                     Issue Title: %s
                     Issue Body: %s
-                    
+
                     Classify: Critical, High, Medium, Low
                     Determine:
                     - Severity
                     - Confidence (0.0 to 1.0)
                     - Impact
-                    
+
                     You MUST respond ONLY with a valid JSON object matching this exact schema:
                     {
                       "severity": "Critical",
                       "confidence": 0.91,
                       "reason": "Potential deadlock affecting production systems."
                     }
-                    """, issue.title(), issue.body());
+                    """,
+                    issue.title(), issue.body());
 
             try {
                 String rawJson = client.generateJson(prompt);
                 AiAnalysisResult rawResult = MAPPER.readValue(rawJson, AiAnalysisResult.class);
 
                 AiAnalysisResult finalResult = new AiAnalysisResult(
-                        issue.number(),
-                        rawResult.severity(),
-                        rawResult.confidence(),
-                        rawResult.reason()
-                );
+                        issue.number(), rawResult.severity(), rawResult.confidence(), rawResult.reason());
 
                 newResults.add(finalResult);
                 LOGGER.info("  ↳ Predicted: {} (Confidence: {})", finalResult.severity(), finalResult.confidence());
@@ -127,7 +120,8 @@ public class AnalyzeCommand implements Callable<Integer> {
         // Only save to DB if we actually generated new analyses
         if (!newResults.isEmpty()) {
             SqliteStorage.saveAiAnalysis(repository, newResults);
-            LOGGER.info("AI Analysis completed. {} new results saved to SQLite for '{}'.", newResults.size(), repository);
+            LOGGER.info(
+                    "AI Analysis completed. {} new results saved to SQLite for '{}'.", newResults.size(), repository);
         } else {
             LOGGER.info("AI Analysis completed. All issues were already analyzed. Zero redundant calls made.");
         }

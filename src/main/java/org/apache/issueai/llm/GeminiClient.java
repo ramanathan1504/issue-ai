@@ -16,7 +16,8 @@ public class GeminiClient {
 
     private static final Logger LOGGER = LogManager.getLogger(GeminiClient.class);
     // Using Gemini 1.5 Flash for high-speed, large-context RAG generation
-    private static final String GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
+    private static final String GEMINI_URL =
+            "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final HttpClient httpClient;
     private final String apiKey;
@@ -25,9 +26,8 @@ public class GeminiClient {
     public GeminiClient(String apiKey, String model) {
         this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() ? "gemini-1.5-flash" : model;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
-                .build();
+        this.httpClient =
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
     public String generateText(String prompt) throws IOException, InterruptedException {
