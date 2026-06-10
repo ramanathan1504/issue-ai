@@ -29,6 +29,10 @@ public class GitHubClient {
         this.token = token;
     }
 
+    public GitHubClient() {
+        this(org.apache.issueai.util.CredentialManager.getGitHubToken());
+    }
+
     public List<Issue> getOpenIssues(String owner, String repo, String since) throws IOException, InterruptedException {
         List<Issue> allIssues = new ArrayList<>();
 

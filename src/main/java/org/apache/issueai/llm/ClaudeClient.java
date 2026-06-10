@@ -27,6 +27,10 @@ public class ClaudeClient {
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
     }
 
+    public ClaudeClient(String model) {
+        this(org.apache.issueai.util.CredentialManager.getClaudeKey(), model);
+    }
+
     public String generateText(String prompt) throws IOException, InterruptedException {
         Map<String, Object> message = Map.of("role", "user", "content", prompt);
         Map<String, Object> requestBody = Map.of("model", model, "max_tokens", 4096, "messages", List.of(message));

@@ -23,6 +23,10 @@ public class GeminiClient {
     private final String apiKey;
     private final String model;
 
+    public GeminiClient(String model) {
+        this(org.apache.issueai.util.CredentialManager.getGeminiKey(), model);
+    }
+
     public GeminiClient(String apiKey, String model) {
         this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() ? "gemini-1.5-flash" : model;

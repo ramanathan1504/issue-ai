@@ -124,7 +124,7 @@ public class SyncCommand implements Callable<Integer> {
             LOGGER.info("  ↳ Performing full sync...");
         }
 
-        GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
+        GitHubClient client = new GitHubClient();
 
         // 2. Query GitHub passing the dynamic "since" timestamp
         List<Issue> allIssues = client.getOpenIssues(owner, repoName, since);
@@ -236,7 +236,7 @@ public class SyncCommand implements Callable<Integer> {
 
         LOGGER.info("Querying GitHub Search API for merged contributions...");
 
-        GitHubClient client = new GitHubClient(System.getenv("GITHUB_TOKEN"));
+        GitHubClient client = new GitHubClient();
         List<Issue> mergedPrs = client.searchIssuesAndPrs(searchQuery);
 
         // A. Crawl Diffs and Generate PR Summaries

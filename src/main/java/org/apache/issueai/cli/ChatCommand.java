@@ -138,7 +138,7 @@ public class ChatCommand implements Callable<Integer> {
                 return 1;
             }
             String model = SqliteStorage.loadConfig("openai.model");
-            openAiClient = new OpenAiClient(key, model == null ? "gpt-4o" : model);
+            openAiClient = new OpenAiClient(model == null ? "gpt-4o" : model);
             cloudProviderName = "OpenAI GPT";
         } else if (useClaude) {
             String key = retrieveKey("ANTHROPIC_API_KEY", "anthropic_api_key");
@@ -147,7 +147,7 @@ public class ChatCommand implements Callable<Integer> {
                 return 1;
             }
             String model = SqliteStorage.loadConfig("claude.model");
-            claudeClient = new ClaudeClient(key, model == null ? "claude-3-5-sonnet-20240620" : model);
+            claudeClient = new ClaudeClient(model == null ? "claude-3-5-sonnet-20240620" : model);
             cloudProviderName = "Anthropic Claude";
         } else {
             // Default to Gemini
@@ -157,7 +157,7 @@ public class ChatCommand implements Callable<Integer> {
                 return 1;
             }
             String model = SqliteStorage.loadConfig("gemini.model");
-            geminiClient = new GeminiClient(key, model == null ? "gemini-1.5-flash-latest" : model);
+            geminiClient = new GeminiClient(model == null ? "gemini-1.5-flash-latest" : model);
         }
 
         // 6. The REPL (Read-Eval-Print Loop)

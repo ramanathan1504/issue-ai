@@ -212,7 +212,7 @@ public class DatabaseManager {
             // Read current version
             int currentVersion = 0;
             try (Statement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery("SELECT version FROM schema_version;")) {
+                    ResultSet rs = stmt.executeQuery("SELECT MAX(version) AS version FROM schema_version;")) {
                 if (rs.next()) {
                     currentVersion = rs.getInt("version");
                 }

@@ -20,6 +20,10 @@ public class OpenAiClient {
     private final String apiKey;
     private final String model;
 
+    public OpenAiClient(String model) {
+        this(org.apache.issueai.util.CredentialManager.getOpenAiKey(), model);
+    }
+
     public OpenAiClient(String apiKey, String model) {
         this.apiKey = apiKey;
         this.model = model == null || model.isEmpty() ? "gpt-4o" : model;
