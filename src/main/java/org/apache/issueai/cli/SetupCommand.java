@@ -34,6 +34,17 @@ public class SetupCommand implements Callable<Integer> {
             LOGGER.info("  ↳ Updated GitHub Username to: {}", currentUsername);
         }
 
+        // 1.5 Configure Primary Target Repository
+        String currentDefaultRepo = SqliteStorage.loadConfig("default.repository");
+        LOGGER.info("Current Primary Repository: [ {} ]", currentDefaultRepo == null ? "(none)" : currentDefaultRepo);
+        LOGGER.info("Enter new Primary Repository (owner/name) or press Enter to keep current:");
+        String inputRepo = scanner.nextLine().trim();
+        if (!inputRepo.isEmpty()) {
+            SqliteStorage.saveConfig("default.repository", inputRepo);
+            currentDefaultRepo = inputRepo;
+            LOGGER.info("  ↳ Updated Primary Repository to: {}", currentDefaultRepo);
+        }
+
         // 2. Configure Triage Model
         String currentTriageModel = SqliteStorage.loadConfig("ollama.model.triage");
         LOGGER.info("Current AI Triage Model: [ {} ]", currentTriageModel == null ? "(none)" : currentTriageModel);

@@ -1,6 +1,5 @@
 package org.apache.issueai.cli;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
@@ -25,7 +24,7 @@ public class GuideCommand implements Callable<Integer> {
     @Parameters(index = "0", description = "The issue or PR number to analyze")
     private long issueNumber;
 
-    @Option(names = {"-r", "--repo"}, defaultValue = "apache/logging-log4j2")
+    @Option(names = {"-r", "--repo"}, description = "Target repository in 'owner/repo' format (default: current directory's repo)")
     private String repository;
 
     @Option(names = {"-m", "--model"}, description = "Local Ollama model to use")
@@ -36,6 +35,14 @@ public class GuideCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // 1. Resolve configurations
         if (modelName == null) {
             modelName = SqliteStorage.loadConfig("ollama.model.guidance");
@@ -103,7 +110,7 @@ public class GuideCommand implements Callable<Integer> {
 
         String memorySection = matchedCount > 0
                 ? contextBlock.toString()
-                : "No specific personal past experience found. Provide expert generic Log4j resolution.";
+                : "No specific personal past experience found. Provide expert generic "+ repository + "resolution.";
 
         // --- TIER 1: Local Ollama Generation ---
         String localOutput = "";
@@ -117,7 +124,7 @@ public class GuideCommand implements Callable<Integer> {
 
             LOGGER.info("Synthesizing initial blueprint using local model '{}'...", modelName);
             String localPrompt = String.format("""
-                    You are an Apache Log4j maintainer.
+                    You are an expert maintainer.
                     Help the developer write a step-by-step code resolution plan for this new issue.
                     
                     --- REFERENCE MEMORY ---
@@ -164,7 +171,7 @@ public class GuideCommand implements Callable<Integer> {
             LOGGER.info("Bridging request to Cloud Agent (Gemini API)...");
 
             String geminiPrompt = String.format("""
-                    You are an expert Apache Log4j maintainer.
+                    You are an expert maintainer.
                     We are resolving Issue #%d: %s
                     
                     --- ORIGINAL CONTEXT & MEMORY ---

@@ -14,6 +14,8 @@ import org.apache.issueai.model.IssueEmbedding;
 import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Command(
         name = "duplicates",
@@ -21,10 +23,10 @@ import picocli.CommandLine.Option;
 )
 public class DuplicatesCommand implements Callable<Integer> {
 
+    private static final Logger LOGGER = LogManager.getLogger(DuplicatesCommand.class);
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
@@ -43,6 +45,14 @@ public class DuplicatesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // Resolve dynamic embedding model
         if (modelName == null) {
             modelName = SqliteStorage.loadConfig("ollama.model.embedding");
@@ -53,7 +63,7 @@ public class DuplicatesCommand implements Callable<Integer> {
 
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
-            System.err.printf("No local issues found for '%s'. Please run 'sync' first.%n", repository);
+            LOGGER.error("No local issues found for '{}'. Please run 'sync' first.", repository);
             return 1;
         }
 
@@ -63,20 +73,24 @@ public class DuplicatesCommand implements Callable<Integer> {
             vectorMap.put(emb.issueNumber(), emb.vector());
         }
 
-        System.out.printf("Starting duplicate analysis for '%s' (Model: %s, Threshold: %.2f)...%n", repository, modelName, threshold);
+        LOGGER.info(
+                "Starting duplicate analysis for '{}' (Model: {}, Threshold: {})...",
+                repository,
+                modelName,
+                String.format("%.2f", threshold));
         OllamaClient client = new OllamaClient(modelName);
         boolean cacheUpdated = false;
 
         for (Issue issue : issues) {
             if (!vectorMap.containsKey(issue.number())) {
-                System.out.printf("  Generating embedding vector for Issue #%d...%n", issue.number());
+                LOGGER.info("  Generating embedding vector for Issue #{}...", issue.number());
                 String content = "Title: " + issue.title() + "\nBody: " + (issue.body() == null ? "" : issue.body());
                 try {
                     double[] vector = client.generateEmbedding(content);
                     vectorMap.put(issue.number(), vector);
                     cacheUpdated = true;
                 } catch (IOException | InterruptedException e) {
-                    System.err.printf("  ↳ [Error] Failed to generate embedding for #%d: %s%n", issue.number(), e.getMessage());
+                    LOGGER.error("  ↳ [Error] Failed to generate embedding for #{}: {}", issue.number(), e.getMessage());
                     return 1;
                 }
             }
@@ -86,7 +100,7 @@ public class DuplicatesCommand implements Callable<Integer> {
             List<IssueEmbedding> newCacheList = new ArrayList<>();
             vectorMap.forEach((k, v) -> newCacheList.add(new IssueEmbedding(repository, k, v)));
             SqliteStorage.saveEmbeddings(repository, newCacheList);
-            System.out.println("  ↳ Local embeddings database updated.");
+            LOGGER.info("  ↳ Local embeddings database updated.");
         }
 
         int size = issues.size();
@@ -95,7 +109,7 @@ public class DuplicatesCommand implements Callable<Integer> {
             adj.add(new ArrayList<>());
         }
 
-        System.out.println("Analyzing similarities and clustering issues...");
+        LOGGER.info("Analyzing similarities and clustering issues...");
         for (int i = 0; i < size; i++) {
             for (int j = i + 1; j < size; j++) {
                 double[] vecA = vectorMap.get(issues.get(i).number());
@@ -139,26 +153,26 @@ public class DuplicatesCommand implements Callable<Integer> {
             }
         }
 
-        System.out.println("\nDuplicate Issue Clusters Report");
-        System.out.println("===============================\n");
+       LOGGER.info("\nDuplicate Issue Clusters Report");
+        LOGGER.info("===============================\n");
 
         if (clusters.isEmpty()) {
-            System.out.println("No duplicate groups detected above the threshold.");
+            LOGGER.error("No duplicate groups detected above the threshold.");
         } else {
             for (int k = 0; k < clusters.size(); k++) {
                 List<Issue> cluster = clusters.get(k);
-                System.out.printf("Cluster %d (Size: %d)%n", k + 1, cluster.size());
+                LOGGER.info("Cluster {} (Size: {})", k + 1, cluster.size());
 
                 for (Issue issue : cluster) {
-                    System.out.printf("  #%d: %s%n", issue.number(), issue.title());
+                    LOGGER.info("  #{}: {}", issue.number(), issue.title());
                 }
 
                 double[] vecA = vectorMap.get(cluster.get(0).number());
                 double[] vecB = vectorMap.get(cluster.get(1).number());
                 if (vecA != null && vecB != null) {
-                    System.out.printf("  ↳ Representative Pair Similarity: %.2f%n", cosineSimilarity(vecA, vecB));
+                    LOGGER.info("  ↳ Representative Pair Similarity: {}", String.format("%.2f", cosineSimilarity(vecA, vecB)));
                 }
-                System.out.println();
+                LOGGER.info("");
             }
         }
 

@@ -14,12 +14,16 @@ import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 
 @Command(
         name = "search",
         description = "Search the local issue backlog semantically using vector embeddings"
 )
 public class SearchCommand implements Callable<Integer> {
+
+    private static final Logger LOGGER = LogManager.getLogger(SearchCommand.class);
 
     @Parameters(
             index = "0",
@@ -29,8 +33,7 @@ public class SearchCommand implements Callable<Integer> {
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
@@ -55,6 +58,14 @@ public class SearchCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // Resolve dynamic embedding model
         if (modelName == null) {
             modelName = SqliteStorage.loadConfig("ollama.model.embedding");
@@ -67,7 +78,7 @@ public class SearchCommand implements Callable<Integer> {
         List<IssueEmbedding> embeddings;
 
         if (global) {
-            System.out.println("Loading global issues and pull requests from SQLite...");
+            LOGGER.info("Loading global issues and pull requests from SQLite...");
             List<RepoIssue> allIssues = SqliteStorage.loadAllIssues();
             List<RepoIssue> allPrs = SqliteStorage.loadAllPullRequests();
             embeddings = SqliteStorage.loadAllEmbeddings();
@@ -84,22 +95,22 @@ public class SearchCommand implements Callable<Integer> {
         }
 
         if (embeddings.isEmpty()) {
-            System.err.println("No vector embeddings found in the database. Please run 'duplicates' first to generate them.");
+            LOGGER.error("No vector embeddings found in the database. Please run 'duplicates' first to generate them.");
             return 1;
         }
 
-        System.out.printf("Generating semantic vector for query: \"%s\" (Model: %s)...%n", query, modelName);
+        LOGGER.info("Generating semantic vector for query: \"{}\" (Model: {})...", query, modelName);
         OllamaClient client = new OllamaClient(modelName);
         double[] queryVector;
 
         try {
             queryVector = client.generateEmbedding(query);
         } catch (IOException | InterruptedException e) {
-            System.err.printf("  ↳ [Error] Failed to generate embedding: %s%n", e.getMessage());
+            LOGGER.error("  ↳ [Error] Failed to generate embedding: {}", e.getMessage());
             return 1;
         }
 
-        System.out.println("Scanning vectors and calculating cosine similarity...\n");
+        LOGGER.info("Scanning vectors and calculating cosine similarity...");
         List<SearchResult> results = new ArrayList<>();
 
         for (IssueEmbedding emb : embeddings) {
@@ -113,20 +124,20 @@ public class SearchCommand implements Callable<Integer> {
 
         results.sort((a, b) -> Double.compare(b.similarity(), a.similarity()));
 
-        System.out.printf("Top %d Global Semantic Search Results:%n", Math.min(limit, results.size()));
-        System.out.println("==========================================================================");
+        LOGGER.info("Top {} Global Semantic Search Results:", Math.min(limit, results.size()));
+        LOGGER.info("==========================================================================");
 
         for (int i = 0; i < Math.min(limit, results.size()); i++) {
             SearchResult res = results.get(i);
             String typeBadge = res.issue().isPullRequest() ? "[PR]" : "[Issue]";
-            System.out.printf(
-                    "%d. %s %s#%d  Similarity: %.2f%n",
+            LOGGER.info(
+                    "{}. {} {}#{}  Similarity: {}",
                     i + 1,
                     typeBadge,
                     res.repoName(),
                     res.issue().number(),
-                    res.similarity());
-            System.out.printf("   Title: %s%n%n", res.issue().title());
+                    String.format("%.2f",res.similarity()));
+            LOGGER.info("   Title: {}", res.issue().title());
         }
 
         return 0;

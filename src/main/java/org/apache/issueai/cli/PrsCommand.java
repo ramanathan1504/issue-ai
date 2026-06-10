@@ -15,28 +15,37 @@ import org.apache.issueai.model.Issue;
 import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Command(
         name = "prs",
         description = "Analyze cached open pull requests for stale status, reviews, and critical fixes"
 )
 public class PrsCommand implements Callable<Integer> {
-
+    private static final Logger LOGGER = LogManager.getLogger(PrsCommand.class);
     @CommandLine.Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
     private static final Pattern ISSUE_REF_PATTERN = Pattern.compile("#(\\d+)");
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         List<Issue> prs = SqliteStorage.loadPullRequests(repository);
         List<Issue> issues = SqliteStorage.loadIssues(repository);
 
         if (prs.isEmpty()) {
-            System.err.println("No local pull request data found. Please run 'sync' first.");
+            LOGGER.error("No local pull request data found. Please run 'sync' first.");
             return 1;
         }
 
@@ -51,8 +60,8 @@ public class PrsCommand implements Callable<Integer> {
                     .forEach(analysis -> criticalIssueNumbers.add((int) analysis.issue().number()));
         }
 
-        System.out.println("Pull Request Intelligence Report");
-        System.out.println("================================\n");
+        LOGGER.info("Pull Request Intelligence Report");
+        LOGGER.info("================================\n");
 
         List<Issue> stalePrs = new ArrayList<>();
         List<Issue> reviewsNeeded = new ArrayList<>();
@@ -92,50 +101,47 @@ public class PrsCommand implements Callable<Integer> {
         }
 
         // Print Stale PRs
-        System.out.println("STALE PULL REQUESTS (No activity > 30 days)");
-        System.out.println("------------------------------------------");
+        LOGGER.info("STALE PULL REQUESTS (No activity > 30 days)");
+        LOGGER.info("------------------------------------------");
         if (stalePrs.isEmpty()) {
-            System.out.println("(none)");
+            LOGGER.info("('none')");
         } else {
             for (Issue pr : stalePrs) {
                 long daysSinceUpdate = ChronoUnit.DAYS.between(Instant.parse(pr.updated_at()), now);
-                System.out.printf(
-                        "#%d  Title: %s  Last Activity: %d days ago%n",
+                LOGGER.info(
+                        "#{}  Title: {}  Last Activity: {} days ago",
                         pr.number(),
                         pr.title(),
                         daysSinceUpdate);
             }
         }
-        System.out.println();
 
         // Print Reviews Needed
-        System.out.println("REVIEW NEEDED (No comments/reviews yet)");
-        System.out.println("---------------------------------------");
+        LOGGER.info("REVIEW NEEDED (No comments/reviews yet)");
+        LOGGER.info("---------------------------------------");
         if (reviewsNeeded.isEmpty()) {
-            System.out.println("(none)");
+            LOGGER.info("(none)");
         } else {
             for (Issue pr : reviewsNeeded) {
                 long daysOpen = ChronoUnit.DAYS.between(Instant.parse(pr.created_at()), now);
-                System.out.printf(
-                        "#%d  Title: %s  Waiting: %d days%n",
+                LOGGER.info(
+                        "#{}  Title: {}  Waiting: {} days",
                         pr.number(),
                         pr.title(),
                         daysOpen);
             }
         }
-        System.out.println();
 
         // Print Critical Fixes
-        System.out.println("CRITICAL FIXES (PRs linked to Critical Issues)");
-        System.out.println("----------------------------------------------");
+        LOGGER.info("CRITICAL FIXES (PRs linked to Critical Issues)");
+        LOGGER.info("----------------------------------------------");
         if (criticalFixes.isEmpty()) {
-            System.out.println("(none)");
+            LOGGER.info("(none)");
         } else {
             for (String line : criticalFixes) {
-                System.out.println(line);
+                LOGGER.info(line);
             }
         }
-        System.out.println();
 
         return 0;
     }

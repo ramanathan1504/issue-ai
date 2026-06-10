@@ -27,6 +27,14 @@ fi
 # Navigate to your project directory
 cd "$HOME/apache/issue-analyzer"
 
+# ==================================================
+# DYNAMIC REPOSITORY RESOLUTION
+# ==================================================
+TARGET_REPO=$(sqlite3 data/issue_intelligence.db "SELECT value FROM system_config WHERE key = 'default.repository';")
+if [ -z "$TARGET_REPO" ]; then
+    TARGET_REPO="apache/logging-log4j2" # Safety fallback
+fi
+
 echo "=================================================="
 echo "Phase 1: Compiling Clean Developer Build (Maven)"
 echo "=================================================="
@@ -46,23 +54,23 @@ issue-ai sync --me
 
 echo ""
 echo "=================================================="
-echo "Phase 3: Running AI Severity Assessments"
+echo "Phase 3: Running AI Severity Assessments ($TARGET_REPO)"
 echo "=================================================="
-issue-ai analyze -r apache/logging-log4j2
+issue-ai analyze -r "$TARGET_REPO"
 
 echo ""
 echo "=================================================="
-echo "Phase 4: Regenerating Semantic Vector Index"
+echo "Phase 4: Regenerating Semantic Vector Index ($TARGET_REPO)"
 echo "=================================================="
-issue-ai duplicates -t 0.85 -r apache/logging-log4j2
+issue-ai duplicates -t 0.85 -r "$TARGET_REPO"
 
 echo ""
 echo "=================================================="
-echo "Phase 5: Generating Master Weekly Health Report"
+echo "Phase 5: Generating Master Weekly Health Report ($TARGET_REPO)"
 echo "=================================================="
-issue-ai report -r apache/logging-log4j2
-issue-ai report --me -r apache/logging-log4j2
-issue-ai trend --save -r apache/logging-log4j2
+issue-ai report -r "$TARGET_REPO"
+issue-ai report --me -r "$TARGET_REPO"
+issue-ai trend --save -r "$TARGET_REPO"
 
 echo ""
 echo "=================================================="
@@ -114,24 +122,24 @@ function check_and_notify() {
 # --- QUERY 1: Global Hidden Criticals (Security Risks) ---
 CURRENT_HIDDEN=$(sqlite3 data/issue_intelligence.db "
 SELECT i.number FROM issues i JOIN ai_analysis a ON i.number = a.issue_number AND i.repository = a.repository
-WHERE i.repository = 'apache/logging-log4j2' AND a.severity = 'Critical'
+WHERE i.repository = '$TARGET_REPO' AND a.severity = 'Critical'
 AND i.number NOT IN (SELECT issue_number FROM labels WHERE label_name LIKE '%security%') ORDER BY i.number ASC;")
 
-check_and_notify "data/state_hidden.txt" "$CURRENT_HIDDEN" "🚨" "Log4j Security Alert" "New Hidden Criticals Found!"
+check_and_notify "data/state_hidden.txt" "$CURRENT_HIDDEN" "🚨" "$TARGET_REPO Security Alert" "New Hidden Criticals Found!"
 
 # --- QUERY 2: Brand New Critical Issues (Last 24 Hours) ---
 NEW_CRITICALS=$(sqlite3 data/issue_intelligence.db "
 SELECT i.number FROM issues i JOIN ai_analysis a ON i.number = a.issue_number AND i.repository = a.repository
-WHERE i.repository = 'apache/logging-log4j2' AND a.severity = 'Critical'
+WHERE i.repository = '$TARGET_REPO' AND a.severity = 'Critical'
 AND julianday('now') - julianday(i.created_at) <= 1 ORDER BY i.number ASC;")
 
-check_and_notify "data/state_new_criticals.txt" "$NEW_CRITICALS" "🛡️" "Log4j Triage Alert" "New Critical Bugs Reported Today!"
+check_and_notify "data/state_new_criticals.txt" "$NEW_CRITICALS" "🛡️" "$TARGET_REPO Triage Alert" "New Critical Bugs Reported Today!"
 
 # --- QUERY 3: My Personal Stale PRs (Inactivity > 30 Days) ---
 MY_USERNAME=$(sqlite3 data/issue_intelligence.db "SELECT value FROM system_config WHERE key = 'github.username';")
 MY_STALE_PRS=$(sqlite3 data/issue_intelligence.db "
 SELECT number FROM issues
-WHERE repository = 'apache/logging-log4j2' AND is_pull_request = 1
+WHERE repository = '$TARGET_REPO' AND is_pull_request = 1
 AND author = '$MY_USERNAME' AND julianday('now') - julianday(updated_at) > 30 ORDER BY number ASC;")
 
 check_and_notify "data/state_my_stale.txt" "$MY_STALE_PRS" "👤" "Personal Developer Alert" "Your PRs are going stale!"

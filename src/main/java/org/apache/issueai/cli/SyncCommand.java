@@ -35,8 +35,7 @@ public class SyncCommand implements Callable<Integer> {
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
@@ -60,6 +59,15 @@ public class SyncCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
+
         if (me) {
             return syncPersonalProfile();
         }
@@ -280,7 +288,7 @@ public class SyncCommand implements Callable<Integer> {
                         LOGGER.info("    Generating automated Development Story for PR #{} using model '{}'...", pr.number(), guidanceModel);
 
                         String summaryPrompt = String.format("""
-                                You are an Apache Log4j maintainer.
+                                You are an maintainer.
                                 Summarize the following pull request as a personal development story.
                                 Explain:
                                 1. What problem was solved.

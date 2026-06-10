@@ -1,6 +1,5 @@
 package org.apache.issueai.cli;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.Callable;
@@ -27,7 +26,7 @@ public class ChatCommand implements Callable<Integer> {
     @Parameters(index = "0", description = "The issue or PR number to chat about")
     private long issueNumber;
 
-    @Option(names = {"-r", "--repo"}, defaultValue = "apache/logging-log4j2")
+    @Option(names = {"-r", "--repo"})
     private String repository;
 
     @Option(names = {"--gemini"}, description = "Use Gemini API for cloud escalation (Default)")
@@ -41,6 +40,14 @@ public class ChatCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // 1. Resolve Local Configs
         String modelName = SqliteStorage.loadConfig("ollama.model.guidance");
         if (modelName == null) {
@@ -142,7 +149,7 @@ public class ChatCommand implements Callable<Integer> {
                 LOGGER.info("Bridging request to {} (Cloud Agent)...", cloudProviderName);
 
                 String cloudPrompt = String.format("""
-                        You are an expert Apache Log4j maintainer.
+                        You are an expert maintainer for the '%s' open-source repository.
                         We are actively resolving Issue #%d: %s
                         Body: %s
                         
@@ -197,7 +204,7 @@ public class ChatCommand implements Callable<Integer> {
 
                 LOGGER.info("Thinking locally...");
                 String localPrompt = String.format("""
-                        You are an Apache Log4j maintainer acting as a live coding pair-programmer.
+                        You are an expert maintainer for the '%s' acting as a live coding pair-programmer.
                         We are actively resolving Issue #%d: %s
                         
                         --- RELEVANT PAST EXPERIENCES ---

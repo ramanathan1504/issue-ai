@@ -17,12 +17,16 @@ import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Command(
         name = "triage",
         description = "Perform a consolidated automated triage audit on a specific issue"
 )
 public class TriageCommand implements Callable<Integer> {
+
+    private static final Logger LOGGER = LogManager.getLogger(TriageCommand.class);
 
     @Parameters(
             index = "0",
@@ -32,13 +36,20 @@ public class TriageCommand implements Callable<Integer> {
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository (owner/name)"
     )
     private String repository;
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // 1. Load Datasets
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         List<Issue> prs = SqliteStorage.loadPullRequests(repository);
@@ -64,16 +75,16 @@ public class TriageCommand implements Callable<Integer> {
         }
 
         if (target == null) {
-            System.err.printf("Issue #%d not found in local data for '%s'. Please run 'sync' first.%n", issueNumber, repository);
+            LOGGER.error("Issue #{} not found in local data for '{}'. Please run 'sync' first.", issueNumber, repository);
             return 1;
         }
 
-        System.out.println("==================================================");
-        System.out.printf("Triage Report: %s #%d (%s)%n",
+        LOGGER.info("==================================================");
+        LOGGER.info("Triage Report: {} #{} ({})",
                 target.isPullRequest() ? "PR" : "Issue",
                 issueNumber,
                 repository);
-        System.out.println("==================================================");
+        LOGGER.info("==================================================");
 
         // A. Metadata Output
         String labelsStr = target.labels() == null || target.labels().isEmpty()
@@ -83,11 +94,11 @@ public class TriageCommand implements Callable<Integer> {
         String authorName = target.user() != null ? target.user().login() : "unknown";
         String memberBadge = target.isOrgMember() ? " [Member]" : "";
 
-        System.out.printf("[METADATA]%n");
-        System.out.printf("  Title:      %s%n", target.title());
-        System.out.printf("  Author:     %s%s%n", authorName, memberBadge);
-        System.out.printf("  Labels:     %s%n", labelsStr);
-        System.out.printf("  Comments:   %d%n%n", target.comments());
+        LOGGER.info("[METADATA]%n");
+        LOGGER.info("  Title:      {}", target.title());
+        LOGGER.info("  Author:     {}{}", authorName, memberBadge);
+        LOGGER.info("  Labels:     {}", labelsStr);
+        LOGGER.info("  Comments:   {}", target.comments());
 
         // B. Severity Assessments
         SeverityAnalyzer severityAnalyzer = new SeverityAnalyzer();
@@ -101,13 +112,13 @@ public class TriageCommand implements Callable<Integer> {
             }
         }
 
-        System.out.printf("[SEVERITY ASSESSMENT]%n");
-        System.out.printf("  • V1 Rule Score: %d (%s)%n", v1Analysis.score(), v1Analysis.severity());
+        LOGGER.info("[SEVERITY ASSESSMENT]%n");
+        LOGGER.info("  • V1 Rule Score: {} ({})", v1Analysis.score(), v1Analysis.severity());
         if (targetAi != null) {
-            System.out.printf("  • AI Severity:   %s (Confidence: %.2f)%n", targetAi.severity(), targetAi.confidence());
-            System.out.printf("  • AI Reason:     %s%n%n", targetAi.reason());
+            LOGGER.info("  • AI Severity:   {} (Confidence: {})", targetAi.severity(), String.format("%.2f",targetAi.confidence()));
+            LOGGER.info("  • AI Reason:     {}", targetAi.reason());
         } else {
-            System.out.println("  • AI Severity:   (No AI evaluation found. Run 'analyze' first.)\n");
+            LOGGER.info("  • AI Severity:   (No AI evaluation found. Run 'analyze' first.)");
         }
 
         // C. Backlog Overlap & Duplicates (Semantic Similarity)
@@ -119,9 +130,9 @@ public class TriageCommand implements Callable<Integer> {
             }
         }
 
-        System.out.printf("[BACKLOG OVERLAP]%n");
+        LOGGER.info("[BACKLOG OVERLAP]%n");
         if (targetVector == null) {
-            System.out.println("  No vector embedding found. Run 'duplicates' first to check for overlaps.\n");
+            LOGGER.info("  No vector embedding found. Run 'duplicates' first to check for overlaps.");
         } else {
             List<String> similarIssues = new ArrayList<>();
             for (IssueEmbedding emb : embeddings) {
@@ -141,36 +152,35 @@ public class TriageCommand implements Callable<Integer> {
                 }
             }
             if (similarIssues.isEmpty()) {
-                System.out.println("  No duplicate groups detected above the 70% threshold.\n");
+                LOGGER.info("  No duplicate groups detected above the 70% threshold.");
             } else {
-                System.out.println("  Potential duplicates/related issues detected:");
+                LOGGER.info("  Potential duplicates/related issues detected:");
                 for (String line : similarIssues) {
-                    System.out.println("    - " + line);
+                    LOGGER.info("    - {}", line);
                 }
-                System.out.println();
+
             }
         }
 
         // D. Ecosystem / JIRA Bridges
-        System.out.printf("[ECOSYSTEM / JIRA BRIDGES]%n");
+        LOGGER.info("[ECOSYSTEM / JIRA BRIDGES]%n");
         List<JiraBridgeLink> filteredBridges = jiraBridges.stream()
                 .filter(b -> b.localNumber() == issueNumber)
                 .toList();
 
         if (filteredBridges.isEmpty()) {
-            System.out.println("  No ecosystem connections or JIRA bridge matches found.\n");
+            LOGGER.info("  No ecosystem connections or JIRA bridge matches found.");
         } else {
             for (JiraBridgeLink b : filteredBridges) {
-                System.out.printf("  • Connection: Matches %s#%d via JIRA Key [%s]%n",
+               LOGGER.info("  • Connection: Matches {}#{} via JIRA Key [{}]",
                         b.externalRepo(),
                         b.externalNumber(),
                         b.jiraKey());
             }
-            System.out.println();
         }
 
         // E. Action Log & Recommendation Logic
-        System.out.printf("[RECOMMENDED ACTION LOG]%n");
+       LOGGER.info("[RECOMMENDED ACTION LOG]%n");
         List<String> actions = new ArrayList<>();
 
         // Logic check: Hidden Critical
@@ -199,13 +209,13 @@ public class TriageCommand implements Callable<Integer> {
         }
 
         if (actions.isEmpty()) {
-            System.out.println("  ✔ No immediate actions required. Backlog state is clean.");
+            LOGGER.info("  ✔ No immediate actions required. Backlog state is clean.");
         } else {
             for (String act : actions) {
-                System.out.println("  " + act);
+                LOGGER.info(" {} " , act);
             }
         }
-        System.out.println("==================================================");
+        LOGGER.info("==================================================");
 
         return 0;
     }

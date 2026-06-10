@@ -9,6 +9,8 @@ import org.apache.issueai.model.Issue;
 import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Command(
         name = "hidden-critical",
@@ -16,21 +18,30 @@ import picocli.CommandLine.Option;
 )
 public class HiddenCriticalCommand implements Callable<Integer> {
 
+    private static final Logger LOGGER = LogManager.getLogger(HiddenCriticalCommand.class);
+
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // Load issues and AI analysis results specifically for this repository context
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         List<AiAnalysisResult> aiResults = SqliteStorage.loadAiAnalysis(repository);
 
         if (issues.isEmpty() || aiResults.isEmpty()) {
-            System.err.printf("Required local data is missing for '%s'. Please run 'sync' followed by 'analyze' first.%n", repository);
+            LOGGER.error("Required local data is missing for '{}'. Please run 'sync' followed by 'analyze' first.", repository);
             return 1;
         }
 
@@ -38,8 +49,8 @@ public class HiddenCriticalCommand implements Callable<Integer> {
         Map<Long, AiAnalysisResult> aiMap = aiResults.stream()
                 .collect(Collectors.toMap(AiAnalysisResult::issueNumber, result -> result));
 
-        System.out.printf("Hidden Critical Issues Report for '%s'%n", repository);
-        System.out.println("====================================================\n");
+        LOGGER.info("Hidden Critical Issues Report for '{}'", repository);
+        LOGGER.info("====================================================");
 
         int count = 0;
 
@@ -81,19 +92,19 @@ public class HiddenCriticalCommand implements Callable<Integer> {
                         .map(label -> label.name())
                         .collect(Collectors.joining(", "));
 
-                System.out.printf("Issue #%d%n", issue.number());
-                System.out.printf("  Title: %s%n", issue.title());
-                System.out.printf("  Current Labels: %s%n", labelsStr);
-                System.out.printf("  AI Severity: %s (Confidence: %.2f)%n", aiResult.severity(), aiResult.confidence());
-                System.out.printf("  AI Reason: %s%n", aiResult.reason());
-                System.out.printf("  Detection Rule: %s%n%n", detectionReason);
+                LOGGER.info("Issue #{}", issue.number());
+                LOGGER.info("  Title: {}", issue.title());
+                LOGGER.info("  Current Labels: {}", labelsStr);
+                LOGGER.info("  AI Severity: {} (Confidence: {})", aiResult.severity(), String.format("%.2f",aiResult.confidence()));
+                LOGGER.info("  AI Reason: {}", aiResult.reason());
+                LOGGER.info("  Detection Rule: {}", detectionReason);
             }
         }
 
         if (count == 0) {
-            System.out.printf("No hidden critical issues detected in this database snapshot for '%s'.%n", repository);
+            LOGGER.info("No hidden critical issues detected in this database snapshot for '{}'.", repository);
         } else {
-            System.out.printf("Detection completed. Found %d potential hidden critical issues for '%s'.%n", count, repository);
+            LOGGER.info("Detection completed. Found {} potential hidden critical issues for '{}'.", count, repository);
         }
 
         return 0;

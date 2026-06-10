@@ -27,8 +27,7 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
@@ -40,6 +39,13 @@ public class AnalyzeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // 1. Resolve model dynamically from SQLite config
         if (modelName == null) {
             modelName = SqliteStorage.loadConfig("ollama.model.triage");
@@ -79,7 +85,7 @@ public class AnalyzeCommand implements Callable<Integer> {
             LOGGER.info("Analyzing Issue #{}: {}", issue.number(), issue.title());
 
             String prompt = String.format("""
-                    You are an Apache Log4j maintainer.
+                    You are an expert maintainer for the '%s' open-source repository.
                     Classify the severity of the following GitHub issue.
                     
                     Issue Title: %s

@@ -53,3 +53,15 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+# Build artifacts
+target/
+
+# Local Database & Logs
+data/
+logs/
+history/
+reports/
+
+# IDE files
+.idea/
+*.iml

@@ -18,17 +18,19 @@ import org.apache.issueai.model.TrendSnapshot;
 import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 @Command(
         name = "trend",
         description = "Track and visualize weekly project health trends"
 )
 public class TrendCommand implements Callable<Integer> {
 
+    private static final Logger LOGGER = LogManager.getLogger(TrendCommand.class);
+
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
@@ -40,6 +42,15 @@ public class TrendCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
+
         if (save) {
             saveTodaySnapshot();
         }
@@ -48,29 +59,40 @@ public class TrendCommand implements Callable<Integer> {
         List<TrendSnapshot> snapshots = SqliteStorage.loadTrendSnapshots(repository);
 
         if (snapshots.isEmpty()) {
-            System.out.printf("No historical trend data found for '%s'.%n", repository);
+            LOGGER.info("No historical trend data found for '{}'.", repository);
             System.out.printf("Run with 'trend --save -r %s' first to create your first snapshot.%n", repository);
             return 0;
         }
 
-        System.out.printf("Project Health Trends Dashboard for '%s'%n", repository);
-        System.out.println("=====================================================\n");
+        LOGGER.info("Project Health Trends Dashboard for '{}'", repository);
+        LOGGER.info("=====================================================");
 
-        System.out.printf("%-12s | %-15s | %-13s | %-18s | %-18s%n",
-                "Date", "Critical Issues", "High Priority", "Stale PRs", "Duplicate Clusters");
-        System.out.println("-------------+-----------------+---------------+--------------------+-------------------");
+        LOGGER.info(
+                String.format(
+                        "%-12s | %-15s | %-13s | %-18s | %-18s",
+                        "Date",
+                        "Critical Issues",
+                        "High Priority",
+                        "Stale PRs",
+                        "Duplicate Clusters"));
+        LOGGER.info("-------------+-----------------+---------------+--------------------+-------------------");
 
         for (TrendSnapshot s : snapshots) {
-            System.out.printf("%-12s | %-15d | %-13d | %-18d | %-18d%n",
-                    s.date(), s.criticalIssues(), s.highPriority(), s.stalePrs(), s.duplicateClusters());
+            LOGGER.info(
+                    String.format(
+                            "%-12s | %-15d | %-13d | %-18d | %-18d",
+                            s.date(),
+                            s.criticalIssues(),
+                            s.highPriority(),
+                            s.stalePrs(),
+                            s.duplicateClusters()));
         }
-        System.out.println();
 
         if (snapshots.size() > 1) {
             TrendSnapshot first = snapshots.get(0);
             TrendSnapshot latest = snapshots.get(snapshots.size() - 1);
 
-            System.out.println("Trend Analysis (Comparison with oldest snapshot on " + first.date() + "):");
+            LOGGER.info("Trend Analysis (Comparison with oldest snapshot on {} ):", first.date());
 
             int criticalDiff = latest.criticalIssues() - first.criticalIssues();
             int highDiff = latest.highPriority() - first.highPriority();
@@ -88,11 +110,11 @@ public class TrendCommand implements Callable<Integer> {
 
     private void printTrendMessage(String metric, int diff) {
         if (diff < 0) {
-            System.out.printf("  ✔ %s decreased by %d%n", metric, Math.abs(diff));
+            LOGGER.info("  ✔ %s decreased by {}", metric, Math.abs(diff));
         } else if (diff > 0) {
-            System.out.printf("  ⚠ %s increased by %d%n", metric, diff);
+            LOGGER.info("  ⚠ %s increased by {}", metric, diff);
         } else {
-            System.out.printf("  • %s remained unchanged%n", metric);
+            LOGGER.info("  • {} remained unchanged", metric);
         }
     }
 
@@ -103,7 +125,7 @@ public class TrendCommand implements Callable<Integer> {
         List<IssueEmbedding> embeddings = SqliteStorage.loadEmbeddings(repository);
 
         if (issues.isEmpty()) {
-            System.err.printf("No local issues found to save today's snapshot for '%s'. Please run 'sync' first.%n", repository);
+            LOGGER.error("No local issues found to save today's snapshot for '{}'. Please run 'sync' first.", repository);
             return;
         }
 
@@ -142,8 +164,8 @@ public class TrendCommand implements Callable<Integer> {
 
         // Save snapshot specifically for this repository
         SqliteStorage.saveTrendSnapshot(repository, snapshot);
-        System.out.printf("  ↳ Saved snapshot for today (%s) on '%s':%n", today, repository);
-        System.out.printf("    Critical: %d, High: %d, Stale PRs: %d, Duplicates: %d%n%n",
+        LOGGER.info("  ↳ Saved snapshot for today ({}) on '{}':", today, repository);
+        LOGGER.info("    Critical: {}, High: {}, Stale PRs: {}, Duplicates: {}",
                 criticalCount, highCount, staleCount, dupCount);
     }
 

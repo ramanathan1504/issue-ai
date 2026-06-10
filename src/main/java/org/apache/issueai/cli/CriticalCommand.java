@@ -10,26 +10,37 @@ import org.apache.issueai.model.Label;
 import org.apache.issueai.storage.SqliteStorage;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 @Command(
         name = "critical",
         description = "Find critical issues using local data"
 )
 public class CriticalCommand implements Callable<Integer> {
 
+    private static final Logger LOGGER = LogManager.getLogger(CriticalCommand.class);
+
+
     @Option(
             names = {"-r", "--repo"},
-            description = "The target GitHub repository to analyze (owner/name)",
-            defaultValue = "apache/logging-log4j2"
+            description = "The target GitHub repository to analyze (owner/name)"
     )
     private String repository;
 
     @Override
     public Integer call() throws Exception {
+
+        if (repository == null) {
+            repository = SqliteStorage.loadConfig("default.repository");
+            if (repository == null || repository.trim().isEmpty()) {
+                LOGGER.error("No target repository specified. Please use '-r owner/name' or run 'setup' to set a default.");
+                return 1;
+            }
+        }
         // Load issues specifically for this repository
         List<Issue> issues = SqliteStorage.loadIssues(repository);
         if (issues.isEmpty()) {
-            System.err.printf("No local data found for '%s'. Please run the 'sync' command first.%n", repository);
+            LOGGER.error("No local data found for '{}'. Please run the 'sync' command first.", repository);
             return 1;
         }
 
@@ -46,32 +57,32 @@ public class CriticalCommand implements Callable<Integer> {
         long medium = analyses.stream().filter(a -> a.severity() == Severity.MEDIUM).count();
         long low = analyses.stream().filter(a -> a.severity() == Severity.LOW).count();
 
-        System.out.printf("Repository: %s (Offline Mode)%n", repository);
-        System.out.println();
+        LOGGER.info("Repository: {} (Offline Mode)", repository);
+        LOGGER.info("");
 
-        System.out.println("Critical: " + critical);
-        System.out.println("High: " + high);
-        System.out.println("Medium: " + medium);
-        System.out.println("Low: " + low);
+        LOGGER.info("Critical: {}", critical);
+        LOGGER.info("High: {}", high);
+        LOGGER.info("Medium: {}", medium);
+        LOGGER.info("Low: {}", low);
 
-        System.out.println();
-        System.out.println("CRITICAL");
-        System.out.println("========");
+        LOGGER.info("");
+        LOGGER.info("CRITICAL");
+        LOGGER.info("========");
         analyses.stream()
                 .filter(a -> a.severity() == Severity.CRITICAL)
                 .forEach(this::printIssue);
 
-        System.out.println();
-        System.out.println("HIGH");
-        System.out.println("====");
+        LOGGER.info("");
+        LOGGER.info("HIGH");
+        LOGGER.info("====");
         analyses.stream()
                 .filter(a -> a.severity() == Severity.HIGH)
                 .limit(10)
                 .forEach(this::printIssue);
 
-        System.out.println();
-        System.out.println("MEDIUM");
-        System.out.println("====");
+        LOGGER.info("");
+        LOGGER.info("MEDIUM");
+        LOGGER.info("====");
         analyses.stream()
                 .filter(a -> a.severity() == Severity.MEDIUM)
                 .limit(10)
@@ -88,8 +99,8 @@ public class CriticalCommand implements Callable<Integer> {
                 .toList()
                 .toString();
 
-        System.out.printf(
-                "#%d Score=%d Labels=%s [%s] %s%n",
+        LOGGER.info(
+                "#{} Score={} Labels={} [{}] {}",
                 a.issue().number(),
                 a.score(),
                 labels,
