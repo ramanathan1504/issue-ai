@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class GitHubClient {
-    private static final Logger LOGGER = LogManager.getLogger(SyncCommand.class);
+    private static final Logger LOGGER = LogManager.getLogger(GitHubClient.class);
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String GITHUB_API = "https://api.github.com";
