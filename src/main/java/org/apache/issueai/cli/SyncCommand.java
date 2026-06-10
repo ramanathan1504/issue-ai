@@ -116,7 +116,7 @@ public class SyncCommand implements Callable<Integer> {
 
         // 1. Check SQLite for previous sync time
         String since = SqliteStorage.loadLastSyncedAt(targetRepo);
-        Instant startRunTime = Instant.now();
+        Instant startRunTime = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
 
         if (since != null) {
             LOGGER.info("  ↳ Performing delta sync (fetching changes since {})...", since);
@@ -187,7 +187,7 @@ public class SyncCommand implements Callable<Integer> {
 
         // Load the last personal sync time from SQLite config
         String lastSyncedMe = SqliteStorage.loadConfig("developer.last_synced_at");
-        Instant startRunTime = Instant.now();
+        Instant startRunTime = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
 
         if (username == null || username.trim().isEmpty()) {
             LOGGER.error("No GitHub username configured. Please run 'setup' first.");
