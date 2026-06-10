@@ -49,7 +49,7 @@ public class GitHubClient {
                 break;
             }
             allIssues.addAll(issues);
-            LOGGER.info("Fetched page %d (%d issues)%n", page, issues.size());
+            LOGGER.info("Fetched page {} ({} issues)", page, issues.size());
             if (issues.size() < 100) {
                 break;
             }
