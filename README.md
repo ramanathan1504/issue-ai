@@ -1,6 +1,6 @@
-# Log4j Issue Intelligence CLI (`issue-ai`)
+# Issue Intelligence CLI (`issue-ai`)
 
-An advanced, offline-first, AI-powered Personal Copilot designed for Apache Log4j maintainers. It manages issue triage, cross-repository dependency tracking, and provides real-time, context-aware coding guidance using a Dual-Engine Developer Memory.
+An advanced, offline-first, AI-powered Personal Copilot designed for maintainers. It manages issue triage, cross-repository dependency tracking, and provides real-time, context-aware coding guidance using a Dual-Engine Developer Memory.
 
 ---
 
@@ -69,7 +69,7 @@ The project includes an hourly background daemon that automatically fetches upda
 For standard manual repository analysis:
 
 ```bash
-# 1. Sync all 14+ ecosystem repositories (Log4j, Kafka, Spark, Elastic, etc.)
+# 1. Sync all ecosystem repositories (Log4j, Kafka, Spark, Elastic, etc.)
 issue-ai sync --all
 
 # 2. Sync your personal 1-year Developer Profile & Google Drive chat logs

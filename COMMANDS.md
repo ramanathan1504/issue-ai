@@ -3,7 +3,7 @@
 This guide outlines all subcommands available in the `issue-ai` CLI platform.
 
 ## Global Options
-*   `-r`, `--repo` : Target GitHub repository to analyze (Default: `apache/logging-log4j2`).
+*   `-r`, `--repo` : Target GitHub repository to analyze (Default: `owner/reponame`).
 
 ---
 
